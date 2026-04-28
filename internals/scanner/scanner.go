@@ -58,3 +58,24 @@ func WorkerPoolScan(ip string, ports []int, workerCount int) []int {
 
 	return openPorts
 }
+
+// GrabBanner attempts to read the service banner from an open port
+func GrabBanner(ip string, port int, timeout time.Duration) string {
+	address := fmt.Sprintf("%s:%d", ip, port)
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	// Set a deadline for reading so we don't hang forever
+	conn.SetReadDeadline(time.Now().Add(timeout))
+
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return "Unknown Service"
+	}
+
+	return string(buffer[:n])
+}
