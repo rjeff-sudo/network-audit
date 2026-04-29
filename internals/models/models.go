@@ -28,3 +28,23 @@ type CVE struct {
 	Description string  `json:"description"`
 	Fix         string  `json:"fix"`
 }
+
+// NVDResponse is a simplified wrapper for the NVD API 2.0 response
+type NVDResponse struct {
+	Vulnerabilities []struct {
+		CVE struct {
+			ID               string `json:"id"`
+			Descriptions     []struct {
+				Value string `json:"value"`
+			} `json:"descriptions"`
+			Metrics struct {
+				CvssMetricV31 []struct {
+					CvssData struct {
+						BaseScore float64 `json:"baseScore"`
+						Severity  string  `json:"baseSeverity"`
+					} `json:"cvssData"`
+				} `json:"cvssMetricV31"`
+			} `json:"metrics"`
+		} `json:"cve"`
+	} `json:"vulnerabilities"`
+}
