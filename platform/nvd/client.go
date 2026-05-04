@@ -15,6 +15,7 @@ const baseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 type Client struct {
 	APIKey     string
 	HTTPClient *http.Client
+	DB         *sql.DB
 }
 
 func NewClient() *Client {
