@@ -17,7 +17,7 @@ async function fetchHistory() {
                     </td>
                     <td class="p-4 text-slate-400 text-sm">${new Date(scan.timestamp).toLocaleString()}</td>
                     <td class="p-4 text-right">
-                        <button class="text-blue-400 hover:underline text-sm">View Details</button>
+                       <button onclick="viewDetails(${scan.id})" class="text-blue-400 hover:underline text-sm">View Details</button>
                     </td>
                 </tr>
             `;
