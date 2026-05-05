@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-
+     
 	"github.com/rjeff-sudo/network-audit/internals/audit"
 	"github.com/rjeff-sudo/network-audit/internals/models"
 	"github.com/rjeff-sudo/network-audit/internals/scanner"
