@@ -37,7 +37,17 @@ func InitDB(filepath string) (*sql.DB, error) {
         vulnerabilities TEXT,
         FOREIGN KEY(scan_id) REFERENCES scans(id)
     );`
-
+	
 	_, err = db.Exec(query)
-	return db, err
+    if err != nil {
+        return nil, err
+    }
+
+    // ADD THIS BLOCK HERE:
+    _, err = db.Exec(resultsTable) // This "uses" the variable
+    if err != nil {
+        return nil, err
+    }
+
+    return db, nil
 }
