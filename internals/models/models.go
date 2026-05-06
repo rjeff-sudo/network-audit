@@ -20,6 +20,11 @@ type Port struct {
 	Vulnerabilities []CVE `json:"vulnerabilities"`
 }
 
+type ServiceInfo struct {
+	Product string `json:"product"`
+	Version string `json:"version"`
+}
+
 // CVE represents a specific security vulnerability from NVD
 type CVE struct {
 	ID          string  `json:"id"`
