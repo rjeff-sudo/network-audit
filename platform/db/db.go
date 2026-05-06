@@ -27,6 +27,17 @@ func InitDB(filepath string) (*sql.DB, error) {
 		PRIMARY KEY (product, version)
 	);`
 
+	resultsTable := `
+    CREATE TABLE IF NOT EXISTS scan_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER,
+        port INTEGER,
+        service TEXT,
+        version TEXT,
+        vulnerabilities TEXT,
+        FOREIGN KEY(scan_id) REFERENCES scans(id)
+    );`
+
 	_, err = db.Exec(query)
 	return db, err
 }

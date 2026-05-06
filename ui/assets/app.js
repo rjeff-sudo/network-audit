@@ -24,7 +24,7 @@ async function fetchHistory() {
             tableBody.insertAdjacentHTML('beforeend', row);
         });
     } catch (error) {
-        console.error('Error fetching history:', error);
+        console.error('Etrror fetching history:', error);
     }
 }
 
