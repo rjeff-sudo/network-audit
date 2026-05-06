@@ -30,7 +30,7 @@ func main() {
 	}
 	defer database.Close()
 
-	// Initialize NVD Client for the scanner logic
+	// Initialize NVD Client
 	nvdClient := nvd.NewClient()
 	nvdClient.DB = database
 
@@ -57,7 +57,7 @@ func main() {
 		json.NewEncoder(w).Encode(history)
 	})
 
-	// 3. API Endpoint: Trigger a New Scan (Updated with Detailed Saving)
+	// 3. API Endpoint: Trigger a New Scan
 	http.HandleFunc("/api/scan", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -72,7 +72,7 @@ func main() {
 		
 		var allCVEs []models.CVE
 		
-		// Temporary storage for individual port findings
+		// Temporary storage for individual port findings to save after we get Scan ID
 		type resultEntry struct {
 			port    int
 			info    models.ServiceInfo
@@ -82,8 +82,9 @@ func main() {
 
 		for _, p := range openPorts {
 			raw := scanner.GrabBanner(target, p, 2*time.Second)
-			info := audit.ParseBanner(raw)
+			info := audit.ParseBanner(raw) // audit.ParseBanner now returns models.ServiceInfo
 			cves, _ := nvdClient.FetchCVEs(info.Product, info.Version)
+			
 			allCVEs = append(allCVEs, cves...)
 
 			// Prepare data for scan_results table
@@ -101,11 +102,12 @@ func main() {
 		// Persist Main Scan Header
 		res, err := database.Exec("INSERT INTO scans (ip, risk_score) VALUES (?, ?)", target, finalScore)
 		if err != nil {
-			http.Error(w, "Failed to save scan", http.StatusInternalServerError)
+			log.Printf("❌ Error saving scan header: %v", err)
+			http.Error(w, "Failed to save scan header", http.StatusInternalServerError)
 			return
 		}
 
-		// Get the ID of the scan we just saved to link results
+		// Get the ID to link our results
 		scanID, _ := res.LastInsertId()
 
 		// Persist Individual Port Findings
@@ -115,7 +117,7 @@ func main() {
 				VALUES (?, ?, ?, ?, ?)`,
 				scanID, f.port, f.info.Product, f.info.Version, string(f.cveJSON))
 			if err != nil {
-				log.Printf("⚠️ Error saving result for port %d: %v", f.port, err)
+				log.Printf("⚠️ Error saving port %d: %v", f.port, err)
 			}
 		}
 
@@ -123,7 +125,7 @@ func main() {
 		fmt.Fprintf(w, `{"status": "success", "score": %d, "scan_id": %d}`, finalScore, scanID)
 	})
 
-	// 4. NEW API Endpoint: Fetch Scan Details
+	// 4. API Endpoint: Fetch Scan Details (The one the "View Details" button calls)
 	http.HandleFunc("/api/details", func(w http.ResponseWriter, r *http.Request) {
 		scanID := r.URL.Query().Get("id")
 		if scanID == "" {
@@ -151,7 +153,7 @@ func main() {
 				"port":            port,
 				"service":         service,
 				"version":         version,
-				"vulnerabilities": json.RawMessage(vuls), // Keep as JSON for frontend
+				"vulnerabilities": json.RawMessage(vuls), // Use json.RawMessage to avoid double-encoding
 			})
 		}
 
