@@ -57,8 +57,7 @@ func main() {
 		json.NewEncoder(w).Encode(history)
 	})
 
-	// 3. API Endpoint: Trigger a New Scan
-	// This connects the 'Start Scan' button to your Phase 1 engine logic
+	// 3. API Endpoint: Trigger a New Scan (Updated with Detailed Saving)
 	http.HandleFunc("/api/scan", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -72,32 +71,99 @@ func main() {
 		openPorts := scanner.WorkerPoolScan(target, ports, 10)
 		
 		var allCVEs []models.CVE
+		
+		// Temporary storage for individual port findings
+		type resultEntry struct {
+			port    int
+			info    models.ServiceInfo
+			cveJSON []byte
+		}
+		var findings []resultEntry
+
 		for _, p := range openPorts {
 			raw := scanner.GrabBanner(target, p, 2*time.Second)
 			info := audit.ParseBanner(raw)
 			cves, _ := nvdClient.FetchCVEs(info.Product, info.Version)
 			allCVEs = append(allCVEs, cves...)
+
+			// Prepare data for scan_results table
+			cveData, _ := json.Marshal(cves)
+			findings = append(findings, resultEntry{
+				port:    p,
+				info:    info,
+				cveJSON: cveData,
+			})
 		}
 
 		// Calculate Score
 		finalScore := audit.CalculateRiskScore(allCVEs)
 
-		// Persist to Database
-		_, err = database.Exec("INSERT INTO scans (ip, risk_score) VALUES (?, ?)", target, finalScore)
+		// Persist Main Scan Header
+		res, err := database.Exec("INSERT INTO scans (ip, risk_score) VALUES (?, ?)", target, finalScore)
 		if err != nil {
 			http.Error(w, "Failed to save scan", http.StatusInternalServerError)
 			return
 		}
 
+		// Get the ID of the scan we just saved to link results
+		scanID, _ := res.LastInsertId()
+
+		// Persist Individual Port Findings
+		for _, f := range findings {
+			_, err = database.Exec(`
+				INSERT INTO scan_results (scan_id, port, service, version, vulnerabilities) 
+				VALUES (?, ?, ?, ?, ?)`,
+				scanID, f.port, f.info.Product, f.info.Version, string(f.cveJSON))
+			if err != nil {
+				log.Printf("⚠️ Error saving result for port %d: %v", f.port, err)
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "success", "score": %d}`, finalScore)
+		fmt.Fprintf(w, `{"status": "success", "score": %d, "scan_id": %d}`, finalScore, scanID)
 	})
 
-	// 4. Static File Server
+	// 4. NEW API Endpoint: Fetch Scan Details
+	http.HandleFunc("/api/details", func(w http.ResponseWriter, r *http.Request) {
+		scanID := r.URL.Query().Get("id")
+		if scanID == "" {
+			http.Error(w, "Missing scan ID", http.StatusBadRequest)
+			return
+		}
+
+		rows, err := database.Query(`
+			SELECT port, service, version, vulnerabilities 
+			FROM scan_results 
+			WHERE scan_id = ?`, scanID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var details []map[string]interface{}
+		for rows.Next() {
+			var port int
+			var service, version, vuls string
+			rows.Scan(&port, &service, &version, &vuls)
+
+			details = append(details, map[string]interface{}{
+				"port":            port,
+				"service":         service,
+				"version":         version,
+				"vulnerabilities": json.RawMessage(vuls), // Keep as JSON for frontend
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(details)
+	})
+
+	// 5. Static File Server
 	fs := http.FileServer(http.Dir("./ui"))
 	http.Handle("/", fs)
 
-	// 5. Start Server
+	// 6. Start Server
 	port := ":8080"
 	log.Printf("🚀 SME-Shield Dashboard running at http://localhost%s\n", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
