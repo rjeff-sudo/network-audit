@@ -112,9 +112,6 @@ func main() {
 
 		// Persist Individual Port Findings
 		for _, f := range findings {
-
-			fmt.Printf("🛠️ DEBUG: Found Port %d, saving to Scan ID %d\n", f.port, scanID)
-			
 			_, err = database.Exec(`
 				INSERT INTO scan_results (scan_id, port, service, version, vulnerabilities) 
 				VALUES (?, ?, ?, ?, ?)`,
