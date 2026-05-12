@@ -1,16 +1,31 @@
+/**
+ * SME-Shield Frontend Logic
+ * Manages scan triggering, history fetching, and modal rendering.
+ */
+
+// 1. Fetch and display the scan history
 async function fetchHistory() {
     try {
         const response = await fetch('/api/history');
-        const data = await response.json();
+        if (!response.ok) throw new Error('Failed to fetch history');
         
+        const data = await response.json();
         const tableBody = document.getElementById('history-body');
-        tableBody.innerHTML = ''; // Clear current rows
+        const avgScoreElem = document.getElementById('avg-score');
+        
+        tableBody.innerHTML = ''; 
 
-        // If no data, show a message
         if (!data || data.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">No scan history found. Run your first audit to see results.</td></tr>';
+            avgScoreElem.innerText = '--';
             return;
         }
+
+        // Update overall health (average score)
+        const totalScore = data.reduce((acc, curr) => acc + curr.score, 0);
+        const avg = Math.round(totalScore / data.length);
+        avgScoreElem.innerText = `${avg}/100`;
+        avgScoreElem.className = `text-4xl font-bold mt-2 ${getScoreColorText(avg)}`;
 
         data.forEach(scan => {
             const row = `
@@ -36,13 +51,51 @@ async function fetchHistory() {
     }
 }
 
+// 2. Trigger a new scan
+async function startScan() {
+    console.log("Button clicked: starting scan...");
+    const btn = document.getElementById('scan-btn');
+    if (!btn) return;
+
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = `
+        <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Scanning...
+    `;
+
+    try {
+        const response = await fetch('/api/scan', { method: 'POST' });
+        if (!response.ok) throw new Error('Server returned an error');
+
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            await fetchHistory(); 
+            console.log("Scan successful, score:", result.score);
+        }
+    } catch (error) {
+        console.error('Scan error:', error);
+        alert('Failed to start scan. Check if your Go server is running.');
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        btn.innerHTML = originalContent;
+    }
+}
+
+// 3. View individual scan findings
 async function viewDetails(scanId) {
     const modal = document.getElementById('details-modal');
     const content = document.getElementById('modal-content');
     
-    // Show modal and loading state
     modal.classList.remove('hidden');
-    content.innerHTML = '<p class="text-center py-10">Fetching detailed vulnerability data...</p>';
+    content.innerHTML = '<p class="text-center py-10 text-slate-400">Fetching detailed vulnerability data...</p>';
 
     try {
         const response = await fetch(`/api/details?id=${scanId}`);
@@ -57,7 +110,7 @@ async function viewDetails(scanId) {
         details.forEach(item => {
             const vuls = item.vulnerabilities || [];
             html += `
-                <div class="border-l-2 border-blue-500 pl-4 py-1">
+                <div class="border-l-2 border-blue-500 pl-4 py-1 bg-slate-900/20 rounded-r-lg p-3">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-blue-400 font-mono font-bold text-lg">Port ${item.port}</span>
@@ -75,59 +128,19 @@ async function viewDetails(scanId) {
         content.innerHTML = html;
 
     } catch (error) {
-        content.innerHTML = '<p class="text-red-400">Error loading details. Ensure the server is running.</p>';
+        content.innerHTML = '<p class="text-red-400">Error loading details.</p>';
     }
 }
 
-async function startScan() {
-    const btn = document.getElementById('scan-btn');
-    
-    // 1. Visual feedback
-    btn.disabled = true;
-    btn.classList.add('opacity-50', 'cursor-not-allowed');
-    btn.innerHTML = `
-        <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Scanning...
-    `;
-
-    try {
-        const response = await fetch('/api/scan', { method: 'POST' });
-        
-        if (!response.ok) throw new Error('Server error');
-
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            // Refresh the history table to show the new scan
-            await fetchHistory(); 
-            alert('Scan successful! Risk Score: ' + result.score);
-        }
-    } catch (error) {
-        console.error('Scan error:', error);
-        alert('Failed to start scan. Is the Go server running?');
-    } finally {
-        // 2. Reset button state
-        btn.disabled = false;
-        btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-            </svg>
-            Start New Audit
-        `;
-    }
-}
-
+// Helpers
 function renderVulnerabilities(vuls) {
-    if (vuls.length === 0) return '<p class="text-emerald-400 text-xs">✅ No known vulnerabilities for this service.</p>';
+    if (!vuls || vuls.length === 0) return '<p class="text-emerald-400 text-xs">✅ No known vulnerabilities.</p>';
     
     return vuls.map(v => `
         <div class="bg-slate-900/50 p-2 mt-2 rounded border border-slate-700/50 text-xs">
             <span class="text-red-400 font-bold">${v.id}</span> 
             <span class="text-slate-500 ml-2">Score: ${v.score}</span>
+            <p class="text-slate-400 mt-1">${v.description || 'No description available.'}</p>
         </div>
     `).join('');
 }
@@ -142,12 +155,28 @@ function getScoreColor(score) {
     return 'bg-red-500/20 text-red-400 border border-red-500/50';
 }
 
-// Close modal when clicking outside of it
-window.onclick = function(event) {
-    const modal = document.getElementById('details-modal');
-    if (event.target == modal) {
-        closeModal();
-    }
+function getScoreColorText(score) {
+    if (score >= 90) return 'text-emerald-400';
+    if (score >= 70) return 'text-amber-400';
+    return 'text-red-400';
 }
 
-window.onload = fetchHistory;
+// 4. Initialization Logic
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("🚀 SME-Shield initialized");
+    fetchHistory();
+    
+    // Check if button is accessible
+    const btn = document.getElementById('scan-btn');
+    if (!btn) {
+        console.error("❌ ERROR: Button with ID 'scan-btn' not found in HTML!");
+    } else {
+        console.log("✅ Scan button linked successfully.");
+    }
+});
+
+// Close modal when clicking outside
+window.onclick = (event) => {
+    const modal = document.getElementById('details-modal');
+    if (event.target == modal) closeModal();
+}
