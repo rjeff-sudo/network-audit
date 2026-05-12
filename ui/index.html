@@ -20,48 +20,60 @@
     </nav>
 
     <main class="max-w-7xl mx-auto p-6 space-y-8">
-        <!-- Dashboard Header -->
-        <header class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h2 class="text-3xl font-bold text-white">Dashboard</h2>
+                <p class="text-slate-400">Manage and monitor network security audits</p>
+            </div>
+            
+            <button onclick="startScan()" id="scan-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-lg shadow-blue-900/20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                </svg>
+                Start New Audit
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
                 <h3 class="text-slate-400 text-sm font-medium uppercase tracking-wider">Overall Health</h3>
                 <p id="avg-score" class="text-4xl font-bold mt-2 text-emerald-400">--</p>
             </div>
-        </header>
+        </div>
 
-        <!-- Scan History Table -->
         <section class="bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden">
             <div class="p-6 border-b border-slate-700">
                 <h2 class="text-xl font-semibold">Recent Audit History</h2>
             </div>
-            <table class="w-full text-left">
-                <thead class="bg-slate-900/50 text-slate-400 text-sm">
-                    <tr>
-                        <th class="p-4 font-medium">Target IP</th>
-                        <th class="p-4 font-medium">Security Score</th>
-                        <th class="p-4 font-medium">Date Conducted</th>
-                        <th class="p-4 font-medium text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="history-body">
-                    <!-- Data will be injected here via JS -->
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-900/50 text-slate-400 text-sm">
+                        <tr>
+                            <th class="p-4 font-medium">Target IP</th>
+                            <th class="p-4 font-medium">Security Score</th>
+                            <th class="p-4 font-medium">Date Conducted</th>
+                            <th class="p-4 font-medium text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        </tbody>
+                </table>
+            </div>
         </section>
     </main>
 
-    <script src="assets/app.js"></script>
-
-    <!-- Modal for Scan Details -->
-<div id="details-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-    <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
-        <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-            <h2 class="text-xl font-bold text-white">Scan Findings</h2>
-            <button onclick="closeModal()" class="text-slate-400 hover:text-white">&times; Close</button>
-        </div>
-        <div id="modal-content" class="p-6 max-h-[70vh] overflow-y-auto space-y-4 text-sm text-slate-300">
-            <!-- Details will be injected here -->
+    <div id="details-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-white">Scan Findings</h2>
+                <button onclick="closeModal()" class="text-2xl text-slate-400 hover:text-white transition">&times;</button>
+            </div>
+            <div id="modal-content" class="p-6 max-h-[70vh] overflow-y-auto space-y-4 text-sm text-slate-300">
+                </div>
         </div>
     </div>
-</div>
+
+    <script src="assets/app.js"></script>
 </body>
 </html>
