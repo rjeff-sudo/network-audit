@@ -21,6 +21,37 @@
 
     <main class="max-w-7xl mx-auto p-6 space-y-8">
         
+        <!-- Subnet Detection & Device Discovery Section -->
+        <section class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl border border-slate-600 p-6">
+            <h2 class="text-2xl font-bold mb-4">Network Discovery</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Local Subnet</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="subnet-input" placeholder="Auto-detect..." class="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" readonly>
+                        <button onclick="detectSubnet()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition">Detect</button>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Scan Target</label>
+                    <input type="text" id="scan-target" placeholder="e.g., 192.168.1.0/24 or 192.168.1.1-50" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <button onclick="discoverDevices()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition font-medium">
+                Discover Devices
+            </button>
+
+            <!-- Active Devices List -->
+            <div id="devices-section" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold mb-3 text-emerald-400">Active Devices</h3>
+                <div id="devices-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                </div>
+            </div>
+        </section>
+
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <h2 class="text-3xl font-bold text-white">Dashboard</h2>

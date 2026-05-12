@@ -3,6 +3,102 @@
  * Manages scan triggering, history fetching, and modal rendering.
  */
 
+// 0. Network Discovery Functions
+async function detectSubnet() {
+    console.log("Detecting local subnet...");
+    const input = document.getElementById('subnet-input');
+    input.value = 'Detecting...';
+    
+    try {
+        const response = await fetch('/api/subnet');
+        if (!response.ok) throw new Error('Failed to detect subnet');
+        
+        const subnet = await response.json();
+        input.value = subnet.cidr;
+        
+        // Automatically populate the scan target with the detected subnet
+        const targetInput = document.getElementById('scan-target');
+        if (!targetInput.value) {
+            targetInput.value = subnet.cidr;
+        }
+        
+        console.log("✅ Subnet detected:", subnet.cidr);
+    } catch (error) {
+        console.error('Subnet detection error:', error);
+        input.value = 'Failed to detect';
+        alert('Could not detect subnet. Please enter manually.');
+    }
+}
+
+async function discoverDevices() {
+    const targetInput = document.getElementById('scan-target');
+    const target = targetInput.value.trim();
+    
+    if (!target) {
+        alert('Please enter a subnet or IP range first');
+        return;
+    }
+    
+    console.log("Discovering devices on:", target);
+    const btn = event.target;
+    btn.disabled = true;
+    const originalText = btn.innerText;
+    btn.innerText = 'Scanning...';
+    
+    try {
+        const response = await fetch('/api/discover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cidr: target })
+        });
+        
+        if (!response.ok) throw new Error('Discovery failed');
+        
+        const devices = await response.json();
+        displayDevices(devices);
+        console.log("✅ Found", devices.length, "active devices");
+        
+    } catch (error) {
+        console.error('Device discovery error:', error);
+        alert('Failed to discover devices: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+}
+
+function displayDevices(devices) {
+    const section = document.getElementById('devices-section');
+    const list = document.getElementById('devices-list');
+    
+    if (!devices || devices.length === 0) {
+        list.innerHTML = '<p class="col-span-full text-center text-slate-400">No active devices found</p>';
+        section.classList.remove('hidden');
+        return;
+    }
+    
+    list.innerHTML = '';
+    devices.forEach(device => {
+        const div = document.createElement('div');
+        div.className = 'bg-slate-900/50 border border-slate-700 rounded-lg p-3 cursor-pointer hover:border-blue-500 hover:bg-slate-900 transition';
+        div.innerHTML = `
+            <div class="font-mono text-blue-400 font-bold">${device.ip}</div>
+            <div class="text-xs text-slate-400 mt-1">${device.hostname || 'Unknown'}</div>
+            <button onclick="selectDevice('${device.ip}')" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 rounded transition">
+                Scan This IP
+            </button>
+        `;
+        list.appendChild(div);
+    });
+    
+    section.classList.remove('hidden');
+}
+
+function selectDevice(ip) {
+    document.getElementById('scan-target').value = ip;
+    console.log("Selected device:", ip);
+}
+
 // 1. Fetch and display the scan history
 async function fetchHistory() {
     try {
@@ -60,6 +156,15 @@ async function startScan() {
         return;
     }
 
+    // Get the target from input or use localhost
+    const targetInput = document.getElementById('scan-target');
+    const target = targetInput ? targetInput.value.trim() : '';
+    
+    if (!target) {
+        alert('Please specify a target IP, range, or use the Detect button');
+        return;
+    }
+
     btn.disabled = true;
     btn.classList.add('opacity-50', 'cursor-not-allowed');
     const originalContent = btn.innerHTML;
@@ -73,7 +178,11 @@ async function startScan() {
     `;
 
     try {
-        const response = await fetch('/api/scan', { method: 'POST' });
+        const response = await fetch('/api/scan', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip_range: target })
+        });
         if (!response.ok) throw new Error(`Server returned error: ${response.status} ${response.statusText}`);
 
         const result = await response.json();
@@ -85,8 +194,8 @@ async function startScan() {
         
         if (result.status === 'success') {
             await fetchHistory(); 
-            console.log("✅ Scan successful, score:", result.score);
-            alert('Scan completed successfully!');
+            console.log("✅ Scan successful, results:", result.results);
+            alert(`Scan completed successfully! Scanned ${result.results ? result.results.length : 1} target(s).`);
         } else {
             throw new Error(`Server returned status: ${result.status}`);
         }
@@ -186,6 +295,7 @@ function getScoreColorText(score) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log("🚀 SME-Shield initialized");
     fetchHistory();
+    detectSubnet();
     
     // Check if button is accessible
     const btn = document.getElementById('scan-btn');
