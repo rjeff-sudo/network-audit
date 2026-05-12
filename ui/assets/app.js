@@ -100,16 +100,21 @@ function selectDevice(ip) {
 }
 
 // 1. Fetch and display the scan history
+let allScanHistory = [];
+let showingMore = false;
+
 async function fetchHistory() {
     try {
         const response = await fetch('/api/history');
         if (!response.ok) throw new Error('Failed to fetch history');
         
         const data = await response.json();
+        allScanHistory = data;
         const tableBody = document.getElementById('history-body');
         const avgScoreElem = document.getElementById('avg-score');
         
         tableBody.innerHTML = ''; 
+        showingMore = false;
 
         if (!data || data.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">No scan history found. Run your first audit to see results.</td></tr>';
@@ -117,13 +122,15 @@ async function fetchHistory() {
             return;
         }
 
-        // Update overall health (average score)
+        // Update overall health (average score) based on ALL scans
         const totalScore = data.reduce((acc, curr) => acc + curr.score, 0);
         const avg = Math.round(totalScore / data.length);
         avgScoreElem.innerText = `${avg}/100`;
         avgScoreElem.className = `text-4xl font-bold mt-2 ${getScoreColorText(avg)}`;
 
-        data.forEach(scan => {
+        // Display only the first 10 scans
+        const scansToDisplay = data.slice(0, 10);
+        scansToDisplay.forEach(scan => {
             const row = `
                 <tr class="border-b border-slate-700 hover:bg-slate-700/30 transition">
                     <td class="p-4 font-mono text-blue-400">${scan.ip}</td>
@@ -142,8 +149,70 @@ async function fetchHistory() {
             `;
             tableBody.insertAdjacentHTML('beforeend', row);
         });
+
+        // Add "Show More" button if there are more than 10 scans
+        if (data.length > 10) {
+            const showMoreRow = `
+                <tr class="border-b border-slate-700">
+                    <td colspan="4" class="p-4 text-center">
+                        <button onclick="toggleShowMore()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm transition font-medium">
+                            Show More (${data.length - 10} more scans)
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tableBody.insertAdjacentHTML('beforeend', showMoreRow);
+        }
     } catch (error) {
         console.error('Error fetching history:', error);
+    }
+}
+
+function toggleShowMore() {
+    const tableBody = document.getElementById('history-body');
+    showingMore = !showingMore;
+
+    if (showingMore) {
+        // Show all scans
+        const btn = event.target;
+        const allScans = allScanHistory;
+        
+        // Keep the first 10, then add the rest
+        tableBody.innerHTML = '';
+        allScans.forEach(scan => {
+            const row = `
+                <tr class="border-b border-slate-700 hover:bg-slate-700/30 transition">
+                    <td class="p-4 font-mono text-blue-400">${scan.ip}</td>
+                    <td class="p-4">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold ${getScoreColor(scan.score)}">
+                            ${scan.score}/100
+                        </span>
+                    </td>
+                    <td class="p-4 text-slate-400 text-sm">${new Date(scan.timestamp).toLocaleString()}</td>
+                    <td class="p-4 text-right">
+                       <button onclick="viewDetails(${scan.id})" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded-lg text-xs transition">
+                         View Details
+                       </button>
+                    </td>
+                </tr>
+            `;
+            tableBody.insertAdjacentHTML('beforeend', row);
+        });
+
+        // Show "Show Less" button
+        const showLessRow = `
+            <tr class="border-b border-slate-700">
+                <td colspan="4" class="p-4 text-center">
+                    <button onclick="toggleShowMore()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm transition font-medium">
+                        Show Less
+                    </button>
+                </td>
+            </tr>
+        `;
+        tableBody.insertAdjacentHTML('beforeend', showLessRow);
+    } else {
+        // Show only first 10
+        fetchHistory();
     }
 }
 
