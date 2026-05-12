@@ -55,7 +55,10 @@ async function fetchHistory() {
 async function startScan() {
     console.log("Button clicked: starting scan...");
     const btn = document.getElementById('scan-btn');
-    if (!btn) return;
+    if (!btn) {
+        console.error("❌ Scan button not found!");
+        return;
+    }
 
     btn.disabled = true;
     btn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -71,17 +74,25 @@ async function startScan() {
 
     try {
         const response = await fetch('/api/scan', { method: 'POST' });
-        if (!response.ok) throw new Error('Server returned an error');
+        if (!response.ok) throw new Error(`Server returned error: ${response.status} ${response.statusText}`);
 
         const result = await response.json();
+        console.log("Scan response:", result);
+        
+        if (!result || !result.status) {
+            throw new Error('Invalid response from server');
+        }
         
         if (result.status === 'success') {
             await fetchHistory(); 
-            console.log("Scan successful, score:", result.score);
+            console.log("✅ Scan successful, score:", result.score);
+            alert('Scan completed successfully!');
+        } else {
+            throw new Error(`Server returned status: ${result.status}`);
         }
     } catch (error) {
-        console.error('Scan error:', error);
-        alert('Failed to start scan. Check if your Go server is running.');
+        console.error('❌ Scan error:', error);
+        alert(`Failed to start scan: ${error.message}\n\nMake sure your Go server is running at http://localhost:8080`);
     } finally {
         btn.disabled = false;
         btn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -108,7 +119,16 @@ async function viewDetails(scanId) {
 
         let html = '<div class="space-y-6">';
         details.forEach(item => {
-            const vuls = item.vulnerabilities || [];
+            // Parse vulnerabilities from JSON string if needed
+            let vuls = item.vulnerabilities || [];
+            if (typeof vuls === 'string') {
+                try {
+                    vuls = JSON.parse(vuls);
+                } catch (e) {
+                    console.error('Failed to parse vulnerabilities:', e);
+                    vuls = [];
+                }
+            }
             html += `
                 <div class="border-l-2 border-blue-500 pl-4 py-1 bg-slate-900/20 rounded-r-lg p-3">
                     <div class="flex justify-between items-start mb-2">
@@ -128,6 +148,7 @@ async function viewDetails(scanId) {
         content.innerHTML = html;
 
     } catch (error) {
+        console.error('Error fetching details:', error);
         content.innerHTML = '<p class="text-red-400">Error loading details.</p>';
     }
 }
