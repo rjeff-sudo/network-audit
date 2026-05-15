@@ -20,8 +20,12 @@ type Client struct {
 }
 
 func NewClient() *Client {
+	apiKey := os.Getenv("NVD_API_KEY")
+	if apiKey == "" {
+		apiKey = "20093f30-e51c-47b1-aad0-d2e7af16dcb1"
+	}
 	return &Client{
-		APIKey: os.Getenv("NVD_API_KEY"),
+		APIKey: apiKey,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
