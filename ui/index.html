@@ -75,7 +75,14 @@
 
         <section class="bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden">
             <div class="p-6 border-b border-slate-700">
-                <h2 class="text-xl font-semibold">Recent Audit History</h2>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <h2 class="text-xl font-semibold">Recent Audit History</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="filterHistory('all')" class="filter-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="all">All Time</button>
+                        <button onclick="filterHistory('week')" class="filter-btn bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="week">Last Week</button>
+                        <button onclick="filterHistory('2days')" class="filter-btn bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="2days">Last 2 Days</button>
+                    </div>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -95,12 +102,31 @@
     </main>
 
     <div id="details-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
             <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-                <h2 class="text-xl font-bold text-white">Scan Findings</h2>
+                <div>
+                    <h2 class="text-xl font-bold text-white">Scan Findings</h2>
+                    <p id="scan-ip" class="text-sm text-slate-400 mt-1">--</p>
+                </div>
                 <button onclick="closeModal()" class="text-2xl text-slate-400 hover:text-white transition">&times;</button>
             </div>
-            <div id="modal-content" class="p-6 max-h-[70vh] overflow-y-auto space-y-4 text-sm text-slate-300">
+            <div class="p-6 border-b border-slate-700 bg-slate-900/30">
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Security Score</p>
+                        <p id="scan-score" class="text-3xl font-bold text-emerald-400 mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Total Vulnerabilities</p>
+                        <p id="scan-cve-count" class="text-3xl font-bold text-blue-400 mt-1">--</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase tracking-wider">Scan Date</p>
+                        <p id="scan-date" class="text-sm text-slate-300 mt-1">--</p>
+                    </div>
+                </div>
+            </div>
+            <div id="modal-content" class="p-6 max-h-[60vh] overflow-y-auto space-y-4 text-sm text-slate-300">
                 </div>
         </div>
     </div>
