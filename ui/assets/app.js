@@ -101,7 +101,29 @@ function selectDevice(ip) {
 
 // 1. Fetch and display the scan history
 let allScanHistory = [];
+let filteredScanHistory = [];
+let currentFilter = 'all';
 let showingMore = false;
+
+function getFilteredScans(filter) {
+    const now = new Date();
+    let filtered = [];
+
+    allScanHistory.forEach(scan => {
+        const scanDate = new Date(scan.timestamp);
+        const daysDiff = Math.floor((now - scanDate) / (1000 * 60 * 60 * 24));
+
+        if (filter === 'all') {
+            filtered.push(scan);
+        } else if (filter === 'week' && daysDiff <= 7) {
+            filtered.push(scan);
+        } else if (filter === '2days' && daysDiff <= 2) {
+            filtered.push(scan);
+        }
+    });
+
+    return filtered;
+}
 
 async function fetchHistory() {
     try {
@@ -110,14 +132,12 @@ async function fetchHistory() {
         
         const data = await response.json();
         allScanHistory = data;
-        const tableBody = document.getElementById('history-body');
+        currentFilter = 'all';
+        filterHistory('all');
+        
         const avgScoreElem = document.getElementById('avg-score');
         
-        tableBody.innerHTML = ''; 
-        showingMore = false;
-
         if (!data || data.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">No scan history found. Run your first audit to see results.</td></tr>';
             avgScoreElem.innerText = '--';
             return;
         }
@@ -127,44 +147,69 @@ async function fetchHistory() {
         const avg = Math.round(totalScore / data.length);
         avgScoreElem.innerText = `${avg}/100`;
         avgScoreElem.className = `text-4xl font-bold mt-2 ${getScoreColorText(avg)}`;
-
-        // Display only the first 10 scans
-        const scansToDisplay = data.slice(0, 10);
-        scansToDisplay.forEach(scan => {
-            const row = `
-                <tr class="border-b border-slate-700 hover:bg-slate-700/30 transition">
-                    <td class="p-4 font-mono text-blue-400">${scan.ip}</td>
-                    <td class="p-4">
-                        <span class="px-3 py-1 rounded-full text-xs font-bold ${getScoreColor(scan.score)}">
-                            ${scan.score}/100
-                        </span>
-                    </td>
-                    <td class="p-4 text-slate-400 text-sm">${new Date(scan.timestamp).toLocaleString()}</td>
-                    <td class="p-4 text-right">
-                       <button onclick="viewDetails(${scan.id})" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded-lg text-xs transition">
-                         View Details
-                       </button>
-                    </td>
-                </tr>
-            `;
-            tableBody.insertAdjacentHTML('beforeend', row);
-        });
-
-        // Add "Show More" button if there are more than 10 scans
-        if (data.length > 10) {
-            const showMoreRow = `
-                <tr class="border-b border-slate-700">
-                    <td colspan="4" class="p-4 text-center">
-                        <button onclick="toggleShowMore()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm transition font-medium">
-                            Show More (${data.length - 10} more scans)
-                        </button>
-                    </td>
-                </tr>
-            `;
-            tableBody.insertAdjacentHTML('beforeend', showMoreRow);
-        }
     } catch (error) {
         console.error('Error fetching history:', error);
+    }
+}
+
+function filterHistory(filter) {
+    currentFilter = filter;
+    filteredScanHistory = getFilteredScans(filter);
+    showingMore = false;
+    
+    // Update filter button styling
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.dataset.filter === filter) {
+            btn.classList.remove('bg-slate-700', 'hover:bg-slate-600');
+            btn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+        } else {
+            btn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+            btn.classList.add('bg-slate-700', 'hover:bg-slate-600');
+        }
+    });
+
+    const tableBody = document.getElementById('history-body');
+    tableBody.innerHTML = '';
+
+    if (filteredScanHistory.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">No scans found for this filter.</td></tr>';
+        return;
+    }
+
+    // Display only the first 10 scans
+    const scansToDisplay = filteredScanHistory.slice(0, 10);
+    scansToDisplay.forEach(scan => {
+        const row = `
+            <tr class="border-b border-slate-700 hover:bg-slate-700/30 transition">
+                <td class="p-4 font-mono text-blue-400">${scan.ip}</td>
+                <td class="p-4">
+                    <span class="px-3 py-1 rounded-full text-xs font-bold ${getScoreColor(scan.score)}">
+                        ${scan.score}/100
+                    </span>
+                </td>
+                <td class="p-4 text-slate-400 text-sm">${new Date(scan.timestamp).toLocaleString()}</td>
+                <td class="p-4 text-right">
+                   <button onclick="viewDetails(${scan.id})" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded-lg text-xs transition">
+                     View Details
+                   </button>
+                </td>
+            </tr>
+        `;
+        tableBody.insertAdjacentHTML('beforeend', row);
+    });
+
+    // Add "Show More" button if there are more than 10 scans in the filter
+    if (filteredScanHistory.length > 10) {
+        const showMoreRow = `
+            <tr class="border-b border-slate-700">
+                <td colspan="4" class="p-4 text-center">
+                    <button onclick="toggleShowMore()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm transition font-medium">
+                        Show More (${filteredScanHistory.length - 10} more scans)
+                    </button>
+                </td>
+            </tr>
+        `;
+        tableBody.insertAdjacentHTML('beforeend', showMoreRow);
     }
 }
 
@@ -173,13 +218,9 @@ function toggleShowMore() {
     showingMore = !showingMore;
 
     if (showingMore) {
-        // Show all scans
-        const btn = event.target;
-        const allScans = allScanHistory;
-        
-        // Keep the first 10, then add the rest
+        // Show all filtered scans
         tableBody.innerHTML = '';
-        allScans.forEach(scan => {
+        filteredScanHistory.forEach(scan => {
             const row = `
                 <tr class="border-b border-slate-700 hover:bg-slate-700/30 transition">
                     <td class="p-4 font-mono text-blue-400">${scan.ip}</td>
@@ -211,8 +252,8 @@ function toggleShowMore() {
         `;
         tableBody.insertAdjacentHTML('beforeend', showLessRow);
     } else {
-        // Show only first 10
-        fetchHistory();
+        // Reset to showing first 10
+        filterHistory(currentFilter);
     }
 }
 
@@ -287,48 +328,198 @@ async function viewDetails(scanId) {
     content.innerHTML = '<p class="text-center py-10 text-slate-400">Fetching detailed vulnerability data...</p>';
 
     try {
+        // Fetch details and scan info from history
         const response = await fetch(`/api/details?id=${scanId}`);
         const details = await response.json();
 
+        // Find the scan in history to get score and IP
+        const scan = allScanHistory.find(s => s.id === scanId);
+        if (scan) {
+            document.getElementById('scan-ip').textContent = `Target: ${scan.ip}`;
+            document.getElementById('scan-score').textContent = `${scan.score}/100`;
+            document.getElementById('scan-score').className = `text-3xl font-bold mt-1 ${getScoreColorText(scan.score)}`;
+            document.getElementById('scan-date').textContent = new Date(scan.timestamp).toLocaleString();
+        }
+
         if (!details || details.length === 0) {
             content.innerHTML = '<p class="text-center py-10">No detailed port data found for this scan.</p>';
+            document.getElementById('scan-cve-count').textContent = '0';
             return;
         }
 
-        let html = '<div class="space-y-6">';
+        // Count total CVEs across all ports
+        let totalCVEs = 0;
         details.forEach(item => {
-            // Parse vulnerabilities from JSON string if needed
             let vuls = item.vulnerabilities || [];
             if (typeof vuls === 'string') {
                 try {
                     vuls = JSON.parse(vuls);
-                } catch (e) {
-                    console.error('Failed to parse vulnerabilities:', e);
-                    vuls = [];
-                }
+                } catch (e) {}
             }
-            html += `
-                <div class="border-l-2 border-blue-500 pl-4 py-1 bg-slate-900/20 rounded-r-lg p-3">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <span class="text-blue-400 font-mono font-bold text-lg">Port ${item.port}</span>
-                            <p class="text-slate-400 italic">${item.service} ${item.version}</p>
-                        </div>
-                        <span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-400">
-                            ${vuls.length} CVEs
-                        </span>
-                    </div>
-                    ${renderVulnerabilities(vuls)}
-                </div>
-            `;
+            totalCVEs += vuls.length;
         });
-        html += '</div>';
+        document.getElementById('scan-cve-count').textContent = totalCVEs;
+
+        // Group ports by risk level
+        const grouped = groupByRisk(details);
+        let html = '';
+
+        // Critical vulnerabilities
+        if (grouped.critical.length > 0) {
+            html += renderRiskGroup('Critical', grouped.critical, 'critical');
+        }
+
+        // High vulnerabilities
+        if (grouped.high.length > 0) {
+            html += renderRiskGroup('High', grouped.high, 'high');
+        }
+
+        // Medium vulnerabilities
+        if (grouped.medium.length > 0) {
+            html += renderRiskGroup('Medium', grouped.medium, 'medium');
+        }
+
+        // Low & others
+        if (grouped.low.length > 0) {
+            html += renderRiskGroup('Low & Info', grouped.low, 'low');
+        }
+
+        // Clean ports (no vulnerabilities)
+        if (grouped.clean.length > 0) {
+            html += renderRiskGroup('Clean Ports', grouped.clean, 'clean');
+        }
+
+        if (!html) {
+            html = '<p class="text-center py-10 text-emerald-400">✅ All ports are clean!</p>';
+        }
+
         content.innerHTML = html;
 
     } catch (error) {
         console.error('Error fetching details:', error);
         content.innerHTML = '<p class="text-red-400">Error loading details.</p>';
     }
+}
+
+function groupByRisk(details) {
+    const grouped = {
+        critical: [],
+        high: [],
+        medium: [],
+        low: [],
+        clean: []
+    };
+
+    details.forEach(item => {
+        let vuls = item.vulnerabilities || [];
+        if (typeof vuls === 'string') {
+            try {
+                vuls = JSON.parse(vuls);
+            } catch (e) {
+                vuls = [];
+            }
+        }
+
+        if (vuls.length === 0) {
+            grouped.clean.push(item);
+        } else {
+            // Determine risk based on max severity
+            const maxScore = Math.max(...vuls.map(v => v.score || 0));
+            
+            if (maxScore >= 9.0) {
+                grouped.critical.push(item);
+            } else if (maxScore >= 7.0) {
+                grouped.high.push(item);
+            } else if (maxScore >= 4.0) {
+                grouped.medium.push(item);
+            } else {
+                grouped.low.push(item);
+            }
+        }
+    });
+
+    // Limit to top N per category
+    grouped.critical = grouped.critical.slice(0, 20);
+    grouped.high = grouped.high.slice(0, 20);
+    grouped.medium = grouped.medium.slice(0, 20);
+
+    return grouped;
+}
+
+function renderRiskGroup(label, items, riskLevel) {
+    const colors = {
+        critical: 'border-red-500 bg-red-500/5',
+        high: 'border-orange-500 bg-orange-500/5',
+        medium: 'border-amber-500 bg-amber-500/5',
+        low: 'border-yellow-500 bg-yellow-500/5',
+        clean: 'border-emerald-500 bg-emerald-500/5'
+    };
+
+    const badgeColors = {
+        critical: 'bg-red-500/20 text-red-400 border-red-500/50',
+        high: 'bg-orange-500/20 text-orange-400 border-orange-500/50',
+        medium: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
+        low: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
+        clean: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+    };
+
+    const buttonId = `group-${riskLevel}`;
+    const contentId = `content-${riskLevel}`;
+
+    let html = `
+        <div class="border-l-4 ${colors[riskLevel]} rounded-r-lg p-4 mb-4">
+            <button onclick="toggleGroup('${contentId}')" class="w-full text-left flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <h3 class="font-bold text-lg">${label}</h3>
+                    <span class="px-3 py-1 rounded-full text-sm font-semibold ${badgeColors[riskLevel]}">
+                        ${items.length} port${items.length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+                <span class="text-xl text-slate-400" id="${buttonId}">▼</span>
+            </button>
+            <div id="${contentId}" class="mt-4 space-y-3 hidden">
+    `;
+
+    items.forEach(item => {
+        let vuls = item.vulnerabilities || [];
+        if (typeof vuls === 'string') {
+            try {
+                vuls = JSON.parse(vuls);
+            } catch (e) {
+                vuls = [];
+            }
+        }
+
+        html += `
+            <div class="bg-slate-900/50 border border-slate-700 rounded-lg p-3 ml-2">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <span class="text-blue-400 font-mono font-bold text-base">Port ${item.port}</span>
+                        <p class="text-slate-400 text-sm italic mt-1">${item.service} ${item.version}</p>
+                    </div>
+                    <span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">
+                        ${vuls.length} CVE${vuls.length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+                ${renderVulnerabilities(vuls)}
+            </div>
+        `;
+    });
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    return html;
+}
+
+function toggleGroup(contentId) {
+    const content = document.getElementById(contentId);
+    const button = document.getElementById('group-' + contentId.split('-')[1]);
+    
+    content.classList.toggle('hidden');
+    button.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
 // Helpers
