@@ -44,10 +44,10 @@
                 Discover Devices
             </button>
 
-            <!-- Active Devices List -->
+            <!-- Compact Active Devices List -->
             <div id="devices-section" class="mt-6 hidden">
-                <h3 class="text-lg font-semibold mb-3 text-emerald-400">Active Devices</h3>
-                <div id="devices-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                <h3 class="text-lg font-semibold mb-3 text-emerald-400">Discovered Devices <span id="device-count" class="text-sm text-slate-400">(0)</span></h3>
+                <div id="devices-list" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-3 bg-slate-900/30 rounded-lg border border-slate-700">
                 </div>
             </div>
         </section>
@@ -128,6 +128,19 @@
             </div>
             <div id="modal-content" class="p-6 max-h-[60vh] overflow-y-auto space-y-4 text-sm text-slate-300">
                 </div>
+        </div>
+    </div>
+
+    <!-- Device Selection Modal -->
+    <div id="device-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-white">Select Device to Audit</h2>
+                <button onclick="closeDeviceModal()" class="text-2xl text-slate-400 hover:text-white transition">&times;</button>
+            </div>
+            <div id="device-modal-content" class="p-6 max-h-[60vh] overflow-y-auto space-y-2">
+                <p class="text-slate-400">No devices discovered. Please run device discovery first.</p>
+            </div>
         </div>
     </div>
 

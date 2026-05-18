@@ -70,33 +70,33 @@ async function discoverDevices() {
 function displayDevices(devices) {
     const section = document.getElementById('devices-section');
     const list = document.getElementById('devices-list');
+    const countSpan = document.getElementById('device-count');
     
     if (!devices || devices.length === 0) {
-        list.innerHTML = '<p class="col-span-full text-center text-slate-400">No active devices found</p>';
+        list.innerHTML = '<p class="text-center text-slate-400 col-span-full py-4">No active devices found</p>';
         section.classList.remove('hidden');
+        countSpan.textContent = '(0)';
         return;
     }
     
     list.innerHTML = '';
     devices.forEach(device => {
-        const div = document.createElement('div');
-        div.className = 'bg-slate-900/50 border border-slate-700 rounded-lg p-3 cursor-pointer hover:border-blue-500 hover:bg-slate-900 transition';
-        div.innerHTML = `
-            <div class="font-mono text-blue-400 font-bold">${device.ip}</div>
-            <div class="text-xs text-slate-400 mt-1">${device.hostname || 'Unknown'}</div>
-            <button onclick="selectDevice('${device.ip}')" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 rounded transition">
-                Scan This IP
-            </button>
-        `;
-        list.appendChild(div);
+        const badge = document.createElement('span');
+        badge.className = 'inline-block bg-blue-600/20 border border-blue-500/50 text-blue-400 text-xs px-3 py-1.5 rounded-full cursor-pointer hover:bg-blue-600/40 transition font-mono';
+        badge.textContent = device.ip;
+        badge.title = device.hostname || 'Unknown device';
+        badge.onclick = () => startAuditWithDevice(device.ip);
+        list.appendChild(badge);
     });
     
+    countSpan.textContent = `(${devices.length})`;
     section.classList.remove('hidden');
 }
 
-function selectDevice(ip) {
+function startAuditWithDevice(ip) {
     document.getElementById('scan-target').value = ip;
-    console.log("Selected device:", ip);
+    console.log("Selected device for audit:", ip);
+    startScan();
 }
 
 // 1. Fetch and display the scan history
@@ -271,7 +271,7 @@ async function startScan() {
     const target = targetInput ? targetInput.value.trim() : '';
     
     if (!target) {
-        alert('Please specify a target IP, range, or use the Detect button');
+        alert('Please specify a target IP or select from discovered devices');
         return;
     }
 
@@ -539,6 +539,61 @@ function closeModal() {
     document.getElementById('details-modal').classList.add('hidden');
 }
 
+async function loadCachedDevices() {
+    try {
+        const response = await fetch('/api/cached-devices');
+        if (!response.ok) return [];
+        
+        const devices = await response.json();
+        return devices || [];
+    } catch (error) {
+        console.error('Error loading cached devices:', error);
+        return [];
+    }
+}
+
+function openDeviceModal() {
+    const modal = document.getElementById('device-modal');
+    const content = document.getElementById('device-modal-content');
+    
+    modal.classList.remove('hidden');
+    
+    // Load and display cached devices
+    loadCachedDevices().then(devices => {
+        if (!devices || devices.length === 0) {
+            content.innerHTML = '<p class="text-slate-400 text-center py-8">No devices discovered yet. Run device discovery first.</p>';
+            return;
+        }
+        
+        content.innerHTML = '';
+        devices.forEach(device => {
+            const div = document.createElement('div');
+            div.className = 'p-3 bg-slate-900/50 border border-slate-700 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-slate-900 transition';
+            div.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-mono text-blue-400 font-bold text-lg">${device.ip}</div>
+                        <div class="text-xs text-slate-400 mt-1">${device.hostname || 'Unknown'}</div>
+                    </div>
+                    <button onclick="selectAndAudit('${device.ip}')" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition text-sm">
+                        Audit
+                    </button>
+                </div>
+            `;
+            content.appendChild(div);
+        });
+    });
+}
+
+function closeDeviceModal() {
+    document.getElementById('device-modal').classList.add('hidden');
+}
+
+function selectAndAudit(ip) {
+    closeDeviceModal();
+    startAuditWithDevice(ip);
+}
+
 function getScoreColor(score) {
     if (score >= 90) return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50';
     if (score >= 70) return 'bg-amber-500/20 text-amber-400 border border-amber-500/50';
@@ -557,6 +612,13 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchHistory();
     detectSubnet();
     
+    // Load cached devices on startup
+    loadCachedDevices().then(devices => {
+        if (devices && devices.length > 0) {
+            displayDevices(devices);
+        }
+    });
+    
     // Check if button is accessible
     const btn = document.getElementById('scan-btn');
     if (!btn) {
@@ -568,6 +630,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Close modal when clicking outside
 window.onclick = (event) => {
-    const modal = document.getElementById('details-modal');
-    if (event.target == modal) closeModal();
+    const detailsModal = document.getElementById('details-modal');
+    const deviceModal = document.getElementById('device-modal');
+    
+    if (event.target == detailsModal) closeModal();
+    if (event.target == deviceModal) closeDeviceModal();
 }

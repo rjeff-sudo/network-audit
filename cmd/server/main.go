@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/rjeff-sudo/network-audit/internals/audit"
@@ -22,6 +23,12 @@ type ScanHistory struct {
 	Score     int       `json:"score"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
+// Global cache for discovered devices
+var (
+	discoveredDevicesMutex sync.RWMutex
+	discoveredDevices      []network.Device
+)
 
 func main() {
 	// 1. Setup Phase
@@ -104,6 +111,29 @@ func main() {
 			http.Error(w, fmt.Sprintf("Discovery failed: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// Cache discovered devices
+		discoveredDevicesMutex.Lock()
+		discoveredDevices = devices
+		discoveredDevicesMutex.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		if devices == nil {
+			devices = []network.Device{}
+		}
+		json.NewEncoder(w).Encode(devices)
+	})
+
+	// 4b. API Endpoint: Get cached discovered devices
+	http.HandleFunc("/api/cached-devices", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		discoveredDevicesMutex.RLock()
+		devices := discoveredDevices
+		discoveredDevicesMutex.RUnlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		if devices == nil {
