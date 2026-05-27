@@ -1,2 +1,51 @@
-# Configuration file
-# Ports, timeouts, NVD key — no hardcoding
+server:
+  port: 8080
+  ui_dir: "./ui"
+  db_path: "./audit.db"
+
+scanner:
+  worker_count: 100
+  timeout_ms: 500
+  banner_timeout_ms: 2000
+  ports:
+    - 21    # FTP
+    - 22    # SSH
+    - 23    # Telnet
+    - 25    # SMTP
+    - 53    # DNS
+    - 80    # HTTP
+    - 110   # POP3
+    - 135   # RPC
+    - 139   # NetBIOS
+    - 143   # IMAP
+    - 443   # HTTPS
+    - 445   # SMB
+    - 993   # IMAPS
+    - 995   # POP3S
+    - 1433  # MSSQL
+    - 3306  # MySQL
+    - 3389  # RDP
+    - 5432  # PostgreSQL
+    - 5900  # VNC
+    - 6379  # Redis
+    - 8080  # HTTP-Alt
+    - 8443  # HTTPS-Alt
+    - 27017 # MongoDB
+
+discovery:
+  worker_count: 50
+  timeout_ms: 800
+  probe_ports:
+    - 22
+    - 80
+    - 443
+    - 445
+    - 3306
+
+nvd:
+  # Get a free key at: https://nvd.nist.gov/developers/request-an-api-key
+  # Without a key you get 5 req/30s. With a key: 50 req/30s.
+  api_key: ""
+  base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+  cache_ttl_hours: 168
+  request_delay_ms: 600
