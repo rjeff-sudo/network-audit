@@ -1,298 +1,206 @@
+// Command server is the SME-Shield application entry point.
+// It loads config, wires all dependencies, registers routes, and starts
+// the HTTP server with graceful shutdown.
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/rjeff-sudo/network-audit/internals/audit"
-	"github.com/rjeff-sudo/network-audit/internals/models"
-	"github.com/rjeff-sudo/network-audit/internals/scanner"
-	"github.com/rjeff-sudo/network-audit/platform/db"
-	"github.com/rjeff-sudo/network-audit/platform/network"
-	"github.com/rjeff-sudo/network-audit/platform/nvd"
-)
+	"gopkg.in/yaml.v3"
 
-// ScanHistory matches the structure of our 'scans' table for JSON output
-type ScanHistory struct {
-	ID        int       `json:"id"`
-	IP        string    `json:"ip"`
-	Score     int       `json:"score"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-// Global cache for discovered devices
-var (
-	discoveredDevicesMutex sync.RWMutex
-	discoveredDevices      []network.Device
+	"github.com/rjeff-sudo/sme-shield/internal/audit"
+	"github.com/rjeff-sudo/sme-shield/internal/handlers"
+	"github.com/rjeff-sudo/sme-shield/internal/hub"
+	"github.com/rjeff-sudo/sme-shield/internal/models"
+	platformDB "github.com/rjeff-sudo/sme-shield/platform/db"
+	"github.com/rjeff-sudo/sme-shield/platform/nvd"
 )
 
 func main() {
-	// 1. Setup Phase
-	database, err := db.InitDB("./audit.db")
+	// ── 1. Load config ────────────────────────────────────────────────────────
+	cfg, err := loadConfig("config.yaml")
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize database: %v", err)
+		log.Fatalf("[main] load config: %v", err)
 	}
-	defer database.Close()
+	log.Printf("[main] config loaded — port %d, db %s", cfg.Server.Port, cfg.Server.DBPath)
 
-	// Initialize NVD Client
-	nvdClient := nvd.NewClient()
-	nvdClient.DB = database
-
-	// 2. API Endpoint: Fetch Scan History
-	http.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := database.Query("SELECT id, ip, risk_score, timestamp FROM scans ORDER BY timestamp DESC")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		var history []ScanHistory
-		for rows.Next() {
-			var h ScanHistory
-			err := rows.Scan(&h.ID, &h.IP, &h.Score, &h.Timestamp)
-			if err != nil {
-				continue
-			}
-			history = append(history, h)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(history)
-	})
-
-	// 3. API Endpoint: Get Local Subnet Information
-	http.HandleFunc("/api/subnet", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		subnet, err := network.GetLocalSubnet()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to detect subnet: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(subnet)
-	})
-
-	// 4. API Endpoint: Discover Active Devices on a Subnet
-	http.HandleFunc("/api/discover", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var req struct {
-			CIDR   string `json:"cidr"`
-			Subnet string `json:"subnet"`
-		}
-
-		json.NewDecoder(r.Body).Decode(&req)
-		
-		cidr := req.CIDR
-		if cidr == "" {
-			cidr = req.Subnet
-		}
-		
-		if cidr == "" {
-			http.Error(w, "CIDR or subnet required", http.StatusBadRequest)
-			return
-		}
-
-		devices, err := network.DiscoverActiveDevices(cidr, 1*time.Second, 20)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Discovery failed: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// Cache discovered devices
-		discoveredDevicesMutex.Lock()
-		discoveredDevices = devices
-		discoveredDevicesMutex.Unlock()
-
-		w.Header().Set("Content-Type", "application/json")
-		if devices == nil {
-			devices = []network.Device{}
-		}
-		json.NewEncoder(w).Encode(devices)
-	})
-
-	// 4b. API Endpoint: Get cached discovered devices
-	http.HandleFunc("/api/cached-devices", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		discoveredDevicesMutex.RLock()
-		devices := discoveredDevices
-		discoveredDevicesMutex.RUnlock()
-
-		w.Header().Set("Content-Type", "application/json")
-		if devices == nil {
-			devices = []network.Device{}
-		}
-		json.NewEncoder(w).Encode(devices)
-	})
-
-	// 5. API Endpoint: Trigger a New Scan
-	http.HandleFunc("/api/scan", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var req struct {
-			Target   string   `json:"target"`
-			Targets  []string `json:"targets"`
-			IPRange  string   `json:"ip_range"`
-		}
-
-		json.NewDecoder(r.Body).Decode(&req)
-
-		var targets []string
-
-		// Determine targets from request
-		if len(req.Targets) > 0 {
-			targets = req.Targets
-		} else if req.Target != "" {
-			targets = []string{req.Target}
-		} else if req.IPRange != "" {
-			// Parse IP range
-			parsed, err := network.ParseIPRange(req.IPRange)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Invalid IP range: %v", err), http.StatusBadRequest)
-				return
-			}
-			targets = parsed
-		} else {
-			// Default to localhost
-			targets = []string{"127.0.0.1"}
-		}
-
-		ports := []int{22, 80, 443, 8080, 3306}
-
-		// Scan each target
-		var allResults []map[string]interface{}
-		for _, target := range targets {
-			// Execute Scanner Logic
-			openPorts := scanner.WorkerPoolScan(target, ports, 10)
-			
-			var allCVEs []models.CVE
-			
-			// Temporary storage for individual port findings to save after we get Scan ID
-			type resultEntry struct {
-				port    int
-				info    models.ServiceInfo
-				cveJSON []byte
-			}
-			var findings []resultEntry
-
-			for _, p := range openPorts {
-				raw := scanner.GrabBanner(target, p, 2*time.Second)
-				info := audit.ParseBanner(raw)
-				cves, _ := nvdClient.FetchCVEs(info.Product, info.Version)
-				
-				allCVEs = append(allCVEs, cves...)
-
-				// Prepare data for scan_results table
-				cveData, _ := json.Marshal(cves)
-				findings = append(findings, resultEntry{
-					port:    p,
-					info:    info,
-					cveJSON: cveData,
-				})
-			}
-
-			// Calculate Score
-			finalScore := audit.CalculateRiskScore(allCVEs)
-
-			// Persist Main Scan Header
-			res, err := database.Exec("INSERT INTO scans (ip, risk_score) VALUES (?, ?)", target, finalScore)
-			if err != nil {
-				log.Printf("❌ Error saving scan header for %s: %v", target, err)
-				continue
-			}
-
-			// Get the ID to link our results
-			scanID, _ := res.LastInsertId()
-
-			// Persist Individual Port Findings
-			for _, f := range findings {
-				_, err = database.Exec(`
-					INSERT INTO scan_results (scan_id, port, service, version, vulnerabilities) 
-					VALUES (?, ?, ?, ?, ?)`,
-					scanID, f.port, f.info.Product, f.info.Version, string(f.cveJSON))
-				if err != nil {
-					log.Printf("⚠️ Error saving port %d for %s: %v", f.port, target, err)
-				}
-			}
-
-			allResults = append(allResults, map[string]interface{}{
-				"ip":      target,
-				"score":   finalScore,
-				"scan_id": scanID,
-			})
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":  "success",
-			"results": allResults,
-		})
-	})
-
-	// 6. API Endpoint: Fetch Scan Details
-	http.HandleFunc("/api/details", func(w http.ResponseWriter, r *http.Request) {
-		scanID := r.URL.Query().Get("id")
-		if scanID == "" {
-			http.Error(w, "Missing scan ID", http.StatusBadRequest)
-			return
-		}
-
-		rows, err := database.Query(`
-			SELECT port, service, version, vulnerabilities 
-			FROM scan_results 
-			WHERE scan_id = ?`, scanID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		var details []map[string]interface{}
-		for rows.Next() {
-			var port int
-			var service, version, vuls string
-			rows.Scan(&port, &service, &version, &vuls)
-
-			details = append(details, map[string]interface{}{
-				"port":            port,
-				"service":         service,
-				"version":         version,
-				"vulnerabilities": json.RawMessage(vuls),
-			})
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(details)
-	})
-
-	// 7. Static File Server
-	fs := http.FileServer(http.Dir("./ui"))
-	http.Handle("/", fs)
-
-	// 8. Start Server
-	port := ":8080"
-	log.Printf("🚀 SME-Shield Dashboard running at http://localhost%s\n", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
-		log.Fatal(err)
+	// ── 2. Open database ──────────────────────────────────────────────────────
+	db, err := platformDB.Open(cfg.Server.DBPath)
+	if err != nil {
+		log.Fatalf("[main] open database: %v", err)
 	}
+	defer db.Close()
+
+	// ── 3. Build shared dependencies ─────────────────────────────────────────
+	wsHub  := hub.New()
+	nvdCli := nvd.NewClient(cfg, db)
+	engine := audit.NewEngine(cfg, db, nvdCli)
+
+	// ── 4. Build handlers ─────────────────────────────────────────────────────
+	scanH      := handlers.NewScanHandler(engine, wsHub)
+	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
+	historyH   := handlers.NewHistoryHandler(db)
+	reportH    := handlers.NewReportHandler(db)
+
+	// ── 5. Register routes ────────────────────────────────────────────────────
+	mux := http.NewServeMux()
+
+	// WebSocket — browser connects here for live audit events.
+	mux.HandleFunc("/ws", wsHub.ServeWS)
+
+	// REST API
+	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
+	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
+	mux.HandleFunc("/api/discover", discoveryH.Discover)
+	mux.HandleFunc("/api/history",  historyH.List)
+	mux.HandleFunc("/api/history/", routeHistory(historyH))
+	mux.HandleFunc("/api/report/",  reportH.Download)
+
+	// Static UI files — fallback to index.html for SPA routing.
+	mux.Handle("/", spaHandler(cfg.Server.UIDir))
+
+	// ── 6. Middleware chain ───────────────────────────────────────────────────
+	handler := withLogging(withCORS(mux))
+
+	// ── 7. Start background tasks ─────────────────────────────────────────────
+	go runCachePruner(db, cfg)
+
+	// ── 8. HTTP server with graceful shutdown ─────────────────────────────────
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 0,            // must be 0 — WebSocket connections are long-lived
+		IdleTimeout:  120 * time.Second,
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("[main] SME-Shield running → http://localhost%s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("[main] listen: %v", err)
+		}
+	}()
+
+	<-quit
+	log.Println("[main] shutting down — draining connections (10s)...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("[main] forced shutdown: %v", err)
+	}
+	log.Println("[main] stopped cleanly")
+}
+
+// ── Route helpers ─────────────────────────────────────────────────────────────
+
+// routeHistory dispatches /api/history/{id} to Get or Delete based on method.
+func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.Get(w, r)
+		case http.MethodDelete:
+			h.Delete(w, r)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// spaHandler serves files from dir. If the requested path does not exist as a
+// file, it returns index.html so the JS router can handle it client-side.
+func spaHandler(dir string) http.Handler {
+	fs := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat(dir + r.URL.Path); os.IsNotExist(err) {
+			http.ServeFile(w, r, dir+"/index.html")
+			return
+		}
+		fs.ServeHTTP(w, r)
+	})
+}
+
+// ── Middleware ────────────────────────────────────────────────────────────────
+
+func withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("[http] %s %s %v", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ── Background tasks ──────────────────────────────────────────────────────────
+
+// runCachePruner removes stale NVD cache rows every hour.
+func runCachePruner(db *sql.DB, cfg models.Config) {
+	ttl := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		n, err := nvd.PruneCache(db, ttl)
+		if err != nil {
+			log.Printf("[cache] prune error: %v", err)
+		} else if n > 0 {
+			log.Printf("[cache] pruned %d stale entries", n)
+		}
+	}
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+func loadConfig(path string) (models.Config, error) {
+	var cfg models.Config
+
+	f, err := os.Open(path)
+	if err != nil {
+		return cfg, fmt.Errorf("open %q: %w", path, err)
+	}
+	defer f.Close()
+
+	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("decode yaml: %w", err)
+	}
+
+	// Safe defaults — protect against a partially-filled config.yaml.
+	if cfg.Server.Port == 0          { cfg.Server.Port = 8080 }
+	if cfg.Server.UIDir == ""        { cfg.Server.UIDir = "./ui" }
+	if cfg.Server.DBPath == ""       { cfg.Server.DBPath = "./audit.db" }
+	if cfg.Scanner.WorkerCount == 0  { cfg.Scanner.WorkerCount = 100 }
+	if cfg.Scanner.TimeoutMs == 0    { cfg.Scanner.TimeoutMs = 500 }
+	if cfg.Scanner.BannerTimeoutMs == 0 { cfg.Scanner.BannerTimeoutMs = 2000 }
+	if cfg.Discovery.WorkerCount == 0 { cfg.Discovery.WorkerCount = 50 }
+	if cfg.Discovery.TimeoutMs == 0  { cfg.Discovery.TimeoutMs = 800 }
+	if cfg.NVD.BaseURL == ""         { cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0" }
+	if cfg.NVD.CacheTTLHours == 0    { cfg.NVD.CacheTTLHours = 168 }
+	if cfg.NVD.RequestDelayMs == 0   { cfg.NVD.RequestDelayMs = 600 }
+
+	return cfg, nil
 }
