@@ -10,15 +10,19 @@ import (
 	"github.com/rjeff-sudo/sme-shield/internal/network"
 )
 
+// DiscoveryHandler holds dependencies for the network discovery endpoints.
 type DiscoveryHandler struct {
 	cfg models.Config
 	hub *hub.Hub
 }
 
+// NewDiscoveryHandler constructs a DiscoveryHandler.
 func NewDiscoveryHandler(cfg models.Config, hub *hub.Hub) *DiscoveryHandler {
 	return &DiscoveryHandler{cfg: cfg, hub: hub}
 }
 
+// Subnet handles GET /api/subnet
+// Returns the detected local subnet CIDR so the UI can show it to the user.
 func (h *DiscoveryHandler) Subnet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -34,16 +38,21 @@ func (h *DiscoveryHandler) Subnet(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"subnet": cidr})
 }
 
+// Discover handles POST /api/discover
+// Sweeps the local subnet and streams discovered devices over WebSocket,
+// returning a 202 immediately so the browser doesn't hang.
 func (h *DiscoveryHandler) Discover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// Optional: accept a specific CIDR in the request body.
+	// If not provided, auto-detect.
 	var body struct {
 		Subnet string `json:"subnet"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	json.NewDecoder(r.Body).Decode(&body) // ignore decode errors — body is optional
 
 	cidr := body.Subnet
 	if cidr == "" {
