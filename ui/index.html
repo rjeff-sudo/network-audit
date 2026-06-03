@@ -1,149 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SME-Shield | Network Audit</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="assets/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SME-Shield — Network Security Auditor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/style.css" />
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
-    <nav class="border-b border-slate-800 p-4 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                SME-SHIELD
-            </h1>
-            <div class="flex gap-4">
-                <button onclick="fetchHistory()" class="text-sm text-slate-400 hover:text-white transition">Refresh History</button>
-            </div>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+  <!-- ── Top Navigation ───────────────────────────────────────────────── -->
+  <nav class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="shield-logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <path d="M16 2L4 7V16C4 22.6 9.4 28.6 16 30C22.6 28.6 28 22.6 28 16V7L16 2Z" fill="#3B82F6"/>
+          <path d="M12 16L15 19L21 13" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <span class="text-white font-bold text-lg tracking-tight">SME-Shield</span>
+        <span class="text-slate-500 text-xs ml-2">Network Security Auditor</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <div id="ws-status" class="flex items-center gap-2 text-xs">
+        <span class="status-dot bg-amber-400 animate-pulse"></span>
+        <span class="text-slate-400">Connecting...</span>
+      </div>
+      <nav class="flex gap-1">
+        <button onclick="showView('dashboard')" data-view="dashboard"
+          class="nav-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Dashboard
+        </button>
+        <button onclick="showView('history')" data-view="history"
+          class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          History
+        </button>
+      </nav>
+    </div>
+  </nav>
+
+  <!-- ── Dashboard View ───────────────────────────────────────────────── -->
+  <div id="view-dashboard" class="view max-w-6xl mx-auto px-6 py-8">
+
+    <!-- Discovery Panel -->
+    <section class="card mb-6">
+      <div class="card-header">
+        <div>
+          <h2 class="text-white font-semibold text-base">Network Discovery</h2>
+          <p class="text-slate-500 text-xs mt-0.5">Detect all active devices on your local network</p>
         </div>
-    </nav>
+        <button id="btn-detect" onclick="detectSubnet()"
+          class="btn-primary text-sm px-4 py-2">
+          Detect Network
+        </button>
+      </div>
 
-    <main class="max-w-7xl mx-auto p-6 space-y-8">
-        
-        <!-- Subnet Detection & Device Discovery Section -->
-        <section class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl border border-slate-600 p-6">
-            <h2 class="text-2xl font-bold mb-4">Network Discovery</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">Local Subnet</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="subnet-input" placeholder="Auto-detect..." class="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" readonly>
-                        <button onclick="detectSubnet()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition">Detect</button>
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">Scan Target</label>
-                    <input type="text" id="scan-target" placeholder="e.g., 192.168.1.0/24 or 192.168.1.1-50" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-                </div>
-            </div>
+      <div class="px-5 pb-5">
+        <div class="flex gap-3 mb-4">
+          <input id="subnet-input" type="text" placeholder="192.168.1.0/24"
+            class="input flex-1" />
+          <button onclick="discoverDevices()"
+            class="btn-secondary text-sm px-5 py-2">
+            Scan Network
+          </button>
+        </div>
 
-            <button onclick="discoverDevices()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg transition font-medium">
-                Discover Devices
-            </button>
+        <!-- Device grid -->
+        <div id="device-grid" class="hidden">
+          <p class="text-xs text-slate-500 mb-3">
+            <span id="device-count">0</span> device(s) found — click a device to audit it
+          </p>
+          <div id="device-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"></div>
+        </div>
+      </div>
+    </section>
 
-            <!-- Compact Active Devices List -->
-            <div id="devices-section" class="mt-6 hidden">
-                <h3 class="text-lg font-semibold mb-3 text-emerald-400">Discovered Devices <span id="device-count" class="text-sm text-slate-400">(0)</span></h3>
-                <div id="devices-list" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-3 bg-slate-900/30 rounded-lg border border-slate-700">
-                </div>
-            </div>
-        </section>
+    <!-- Audit Panel -->
+    <section class="card mb-6">
+      <div class="card-header">
+        <div>
+          <h2 class="text-white font-semibold text-base">Deep Security Audit</h2>
+          <p class="text-slate-500 text-xs mt-0.5">Scan open ports, identify services and check for vulnerabilities</p>
+        </div>
+      </div>
 
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="px-5 pb-5">
+        <div class="flex gap-3 mb-5">
+          <input id="audit-ip" type="text" placeholder="Enter IP address e.g. 192.168.1.1"
+            class="input flex-1" />
+          <button id="btn-audit" onclick="startAudit()"
+            class="btn-primary text-sm px-6 py-2">
+            Start Audit
+          </button>
+        </div>
+
+        <!-- Progress bar — hidden until scan starts -->
+        <div id="progress-wrap" class="hidden mb-5">
+          <div class="flex justify-between text-xs text-slate-400 mb-2">
+            <span id="progress-msg">Initialising...</span>
+            <span id="progress-pct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progress-bar" class="progress-fill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Live port feed — hidden until first port found -->
+        <div id="live-feed-wrap" class="hidden">
+          <p class="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">Live Audit Log</p>
+          <div id="live-feed" class="live-feed"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Panel — hidden until scan completes -->
+    <div id="results-wrap" class="hidden">
+
+      <!-- Score + summary row -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div id="score-card" class="card col-span-1 flex flex-col items-center justify-center py-8">
+          <div id="score-ring" class="score-ring mb-3">
+            <span id="score-value" class="score-number">—</span>
+          </div>
+          <p class="text-sm font-semibold text-white" id="score-label">—</p>
+          <p class="text-xs text-slate-500 mt-1">Security Score</p>
+        </div>
+
+        <div class="card col-span-3">
+          <div class="card-header border-b border-slate-800 pb-4">
             <div>
-                <h2 class="text-3xl font-bold text-white">Dashboard</h2>
-                <p class="text-slate-400">Manage and monitor network security audits</p>
+              <p class="text-xs text-slate-500">Target</p>
+              <p class="text-white font-semibold" id="result-ip">—</p>
+              <p class="text-slate-400 text-xs" id="result-hostname"></p>
             </div>
-            
-            <button onclick="startScan()" id="scan-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-lg shadow-blue-900/20">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                </svg>
-                Start New Audit
-            </button>
-        </div>
+            <div class="flex gap-2">
+              <button id="btn-report" onclick="downloadReport()"
+                class="btn-secondary text-xs px-4 py-2 hidden">
+                Download PDF Report
+              </button>
+              <button onclick="clearResults()"
+                class="btn-ghost text-xs px-4 py-2">
+                Clear
+              </button>
+            </div>
+          </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                <h3 class="text-slate-400 text-sm font-medium uppercase tracking-wider">Overall Health</h3>
-                <p id="avg-score" class="text-4xl font-bold mt-2 text-emerald-400">--</p>
+          <!-- CVE severity counters -->
+          <div class="grid grid-cols-4 divide-x divide-slate-800">
+            <div class="stat-cell">
+              <span id="count-critical" class="stat-num text-red-400">0</span>
+              <span class="stat-label">Critical</span>
             </div>
+            <div class="stat-cell">
+              <span id="count-high" class="stat-num text-orange-400">0</span>
+              <span class="stat-label">High</span>
+            </div>
+            <div class="stat-cell">
+              <span id="count-medium" class="stat-num text-amber-400">0</span>
+              <span class="stat-label">Medium</span>
+            </div>
+            <div class="stat-cell">
+              <span id="count-low" class="stat-num text-green-400">0</span>
+              <span class="stat-label">Low</span>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <section class="bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden">
-            <div class="p-6 border-b border-slate-700">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                    <h2 class="text-xl font-semibold">Recent Audit History</h2>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="filterHistory('all')" class="filter-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="all">All Time</button>
-                        <button onclick="filterHistory('week')" class="filter-btn bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="week">Last Week</button>
-                        <button onclick="filterHistory('2days')" class="filter-btn bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition font-medium" data-filter="2days">Last 2 Days</button>
-                    </div>
-                </div>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-900/50 text-slate-400 text-sm">
-                        <tr>
-                            <th class="p-4 font-medium">Target IP</th>
-                            <th class="p-4 font-medium">Security Score</th>
-                            <th class="p-4 font-medium">Date Conducted</th>
-                            <th class="p-4 font-medium text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-body">
-                        </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <div id="details-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
-            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-white">Scan Findings</h2>
-                    <p id="scan-ip" class="text-sm text-slate-400 mt-1">--</p>
-                </div>
-                <button onclick="closeModal()" class="text-2xl text-slate-400 hover:text-white transition">&times;</button>
-            </div>
-            <div class="p-6 border-b border-slate-700 bg-slate-900/30">
-                <div class="grid grid-cols-3 gap-4">
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wider">Security Score</p>
-                        <p id="scan-score" class="text-3xl font-bold text-emerald-400 mt-1">--</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wider">Total Vulnerabilities</p>
-                        <p id="scan-cve-count" class="text-3xl font-bold text-blue-400 mt-1">--</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wider">Scan Date</p>
-                        <p id="scan-date" class="text-sm text-slate-300 mt-1">--</p>
-                    </div>
-                </div>
-            </div>
-            <div id="modal-content" class="p-6 max-h-[60vh] overflow-y-auto space-y-4 text-sm text-slate-300">
-                </div>
+      <!-- Port details table -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="text-white font-semibold text-base">Open Ports &amp; Vulnerabilities</h2>
+          <span id="port-count-badge" class="badge">0 ports</span>
         </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="table-head">
+                <th class="th">Port</th>
+                <th class="th">Service</th>
+                <th class="th">Product / Version</th>
+                <th class="th">CVEs</th>
+                <th class="th">Top Finding</th>
+                <th class="th">Fix</th>
+              </tr>
+            </thead>
+            <tbody id="port-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div><!-- /results-wrap -->
+  </div><!-- /view-dashboard -->
+
+  <!-- ── History View ──────────────────────────────────────────────────── -->
+  <div id="view-history" class="view hidden max-w-6xl mx-auto px-6 py-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-white font-bold text-xl">Scan History</h1>
+        <p class="text-slate-500 text-sm mt-1">All previous security audits</p>
+      </div>
+      <button onclick="loadHistory()" class="btn-secondary text-sm px-4 py-2">
+        Refresh
+      </button>
     </div>
 
-    <!-- Device Selection Modal -->
-    <div id="device-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
-            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-                <h2 class="text-xl font-bold text-white">Select Device to Audit</h2>
-                <button onclick="closeDeviceModal()" class="text-2xl text-slate-400 hover:text-white transition">&times;</button>
-            </div>
-            <div id="device-modal-content" class="p-6 max-h-[60vh] overflow-y-auto space-y-2">
-                <p class="text-slate-400">No devices discovered. Please run device discovery first.</p>
-            </div>
-        </div>
-    </div>
+    <section class="card">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="table-head">
+              <th class="th">ID</th>
+              <th class="th">Target IP</th>
+              <th class="th">Hostname</th>
+              <th class="th">Score</th>
+              <th class="th">Ports</th>
+              <th class="th">CVEs</th>
+              <th class="th">Scanned</th>
+              <th class="th">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            <tr>
+              <td colspan="8" class="td text-center text-slate-500 py-12">Loading history...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div><!-- /view-history -->
 
-    <script src="assets/app.js"></script>
+  <!-- ── Toast notifications ───────────────────────────────────────────── -->
+  <div id="toast-container" class="fixed bottom-6 right-6 flex flex-col gap-2 z-50"></div>
+
+  <script src="/assets/app.js"></script>
 </body>
 </html>
