@@ -22,7 +22,6 @@ func NewDiscoveryHandler(cfg models.Config, hub *hub.Hub) *DiscoveryHandler {
 }
 
 // Subnet handles GET /api/subnet
-// Returns the detected local subnet CIDR so the UI can show it to the user.
 func (h *DiscoveryHandler) Subnet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -39,20 +38,16 @@ func (h *DiscoveryHandler) Subnet(w http.ResponseWriter, r *http.Request) {
 }
 
 // Discover handles POST /api/discover
-// Sweeps the local subnet and streams discovered devices over WebSocket,
-// returning a 202 immediately so the browser doesn't hang.
 func (h *DiscoveryHandler) Discover(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Optional: accept a specific CIDR in the request body.
-	// If not provided, auto-detect.
 	var body struct {
 		Subnet string `json:"subnet"`
 	}
-	json.NewDecoder(r.Body).Decode(&body) // ignore decode errors — body is optional
+	json.NewDecoder(r.Body).Decode(&body)
 
 	cidr := body.Subnet
 	if cidr == "" {
@@ -91,14 +86,6 @@ func (h *DiscoveryHandler) Discover(w http.ResponseWriter, r *http.Request) {
 			Payload: devices,
 		})
 
-		h.hub.SendProgress(100, "Discovery complete — found "+countStr(len(devices))+" device(s)")
+		h.hub.SendProgress(100, "Discovery complete — found "+portCountStr(len(devices))+" device(s)")
 	}()
-}
-
-func countStr(n int) string {
-	if n == 0 {
-		return "no"
-	}
-	b, _ := json.Marshal(n)
-	return string(b)
 }

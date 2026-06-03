@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,7 +30,6 @@ type scanRow struct {
 }
 
 // List handles GET /api/history
-// Optional query param: ?limit=N (default 20, max 100)
 func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -51,7 +50,7 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			COALESCE(s.hostname, '') AS hostname,
 			s.risk_score,
 			s.scan_time,
-			COUNT(r.id)           AS port_count,
+			COUNT(r.id) AS port_count,
 			COALESCE(SUM(r.cve_count), 0) AS cve_count
 		FROM scans s
 		LEFT JOIN scan_results r ON r.scan_id = s.id
@@ -76,27 +75,24 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		// SQLite stores time as text — parse it back.
 		s.ScanTime, _ = time.Parse(time.RFC3339Nano, scanTimeStr)
 		scans = append(scans, s)
 	}
 
 	if scans == nil {
-		scans = []scanRow{} // return [] not null
+		scans = []scanRow{}
 	}
 
 	jsonOK(w, scans)
 }
 
 // Get handles GET /api/history/{id}
-// Returns the full port-level breakdown for a specific scan.
 func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract id from URL path: /api/history/42
 	idStr := r.URL.Path[len("/api/history/"):]
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
@@ -104,7 +100,6 @@ func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the parent scan.
 	var s scanRow
 	var scanTimeStr string
 	err = h.db.QueryRow(`
@@ -121,7 +116,6 @@ func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	s.ScanTime, _ = time.Parse(time.RFC3339Nano, scanTimeStr)
 
-	// Fetch port-level results.
 	portRows, err := h.db.Query(`
 		SELECT port, service, product, version, cve_count
 		FROM scan_results WHERE scan_id = ?
@@ -185,8 +179,14 @@ func (h *HistoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cascade delete scan_results.
 	h.db.Exec(`DELETE FROM scan_results WHERE scan_id = ?`, id)
-
 	jsonOK(w, map[string]string{"status": "deleted"})
+}
+
+// portCountStr is a small helper used by the discovery handler.
+func portCountStr(n int) string {
+	if n == 0 {
+		return "no"
+	}
+	return fmt.Sprintf("%d", n)
 }
