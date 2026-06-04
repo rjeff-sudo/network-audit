@@ -22,7 +22,6 @@ func NewReportHandler(db *sql.DB) *ReportHandler {
 }
 
 // Download handles GET /api/report/{id}
-// Fetches the scan from the DB, generates a PDF, and streams it to the browser.
 func (h *ReportHandler) Download(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -75,7 +74,8 @@ func (h *ReportHandler) buildReportData(id int64) (report.Data, error) {
 	if err != nil {
 		return data, err
 	}
-	data.ScanTime, _ = time.Parse(time.RFC3339Nano, scanTimeStr)
+
+	data.ScanTime = parseScanTime(scanTimeStr)
 
 	rows, err := h.db.Query(`
 		SELECT port, service, product, version, cve_count
@@ -97,7 +97,27 @@ func (h *ReportHandler) buildReportData(id int64) (report.Data, error) {
 	return data, nil
 }
 
-// ── Shared response helpers used across all handlers in this package ──────────
+// parseScanTime tries every format SQLite might have stored the time in.
+// Falls back to time.Now() so the PDF always shows a real date.
+func parseScanTime(s string) time.Time {
+	formats := []string{
+		time.RFC3339Nano,                // 2006-01-02T15:04:05.999999999Z07:00
+		time.RFC3339,                    // 2006-01-02T15:04:05Z07:00
+		"2006-01-02T15:04:05.999999999", // without timezone
+		"2006-01-02T15:04:05",           // short ISO
+		"2006-01-02 15:04:05.999999999", // SQLite default with space
+		"2006-01-02 15:04:05",           // SQLite default short
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil && t.Year() > 1 {
+			return t
+		}
+	}
+	// Last resort — the DB value is unreadable, use current time
+	return time.Now()
+}
+
+// ── Shared response helpers ───────────────────────────────────────────────────
 
 func jsonOK(w http.ResponseWriter, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
