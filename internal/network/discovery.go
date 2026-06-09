@@ -20,28 +20,22 @@ func GetLocalSubnet() (string, error) {
 	}
 
 	for _, iface := range ifaces {
-		// Skip down interfaces and loopback.
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
-
 		for _, addr := range addrs {
 			ipNet, ok := addr.(*net.IPNet)
 			if !ok || ipNet.IP.To4() == nil {
 				continue
 			}
-			// Return the network address in CIDR form.
-			// e.g. if the machine is 192.168.1.42/24, return "192.168.1.0/24".
 			ip := ipNet.IP.Mask(ipNet.Mask)
 			return fmt.Sprintf("%s/%d", ip.String(), maskBits(ipNet.Mask)), nil
 		}
 	}
-
 	return "", fmt.Errorf("no active IPv4 interface found")
 }
 
@@ -61,11 +55,10 @@ func DiscoverDevices(
 
 	ips := allHostIPs(ipNet)
 
-	ipsCh := make(chan string, len(ips))
+	ipsCh  := make(chan string, len(ips))
 	devsCh := make(chan models.Device, len(ips))
 
 	var wg sync.WaitGroup
-
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
@@ -103,21 +96,17 @@ func DiscoverDevices(
 // network address (all host bits 0) and broadcast (all host bits 1).
 func allHostIPs(ipNet *net.IPNet) []string {
 	var ips []string
-
-	// Start from the network address and increment.
 	ip := make(net.IP, 4)
 	copy(ip, ipNet.IP.To4().Mask(ipNet.Mask))
 
 	for {
 		incrementIP(ip)
-
 		if !ipNet.Contains(ip) {
 			break
 		}
 		if isBroadcast(ip, ipNet) {
 			break
 		}
-
 		clone := make(net.IP, 4)
 		copy(clone, ip)
 		ips = append(ips, clone.String())
@@ -125,16 +114,40 @@ func allHostIPs(ipNet *net.IPNet) []string {
 	return ips
 }
 
-// isAlive tries each probe port and returns true on the first successful dial.
+// isAlive probes all ports concurrently and returns true the moment any one
+// responds. Each IP now takes at most 1x timeout instead of N ports x timeout.
 func isAlive(ip string, ports []int, timeout time.Duration) bool {
+	found := make(chan struct{}, 1)
+	var wg sync.WaitGroup
+
 	for _, port := range ports {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ip, port), timeout)
-		if err == nil {
-			conn.Close()
-			return true
-		}
+		wg.Add(1)
+		go func(p int) {
+			defer wg.Done()
+			conn, err := net.DialTimeout("tcp",
+				fmt.Sprintf("%s:%d", ip, p), timeout)
+			if err == nil {
+				conn.Close()
+				select {
+				case found <- struct{}{}:
+				default:
+				}
+			}
+		}(port)
 	}
-	return false
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-found:
+		return true
+	case <-done:
+		return false
+	}
 }
 
 func lookupHostname(ip string) string {

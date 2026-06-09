@@ -34,7 +34,7 @@ scanner:
 
 discovery:
   worker_count: 50
-  timeout_ms: 800
+  timeout_ms: 200
   probe_ports:
     - 22
     - 80
