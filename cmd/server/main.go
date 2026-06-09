@@ -1,6 +1,3 @@
-// Command server is the SME-Shield application entry point.
-// It loads config, wires all dependencies, registers routes, and starts
-// the HTTP server with graceful shutdown.
 package main
 
 import (
@@ -11,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,61 +24,46 @@ import (
 )
 
 func main() {
-	// ── 1. Load config ────────────────────────────────────────────────────────
 	cfg, err := loadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("[main] load config: %v", err)
 	}
 	log.Printf("[main] config loaded — port %d, db %s", cfg.Server.Port, cfg.Server.DBPath)
 
-	// ── 2. Open database ──────────────────────────────────────────────────────
 	db, err := platformDB.Open(cfg.Server.DBPath)
 	if err != nil {
 		log.Fatalf("[main] open database: %v", err)
 	}
 	defer db.Close()
 
-	// ── 3. Build shared dependencies ─────────────────────────────────────────
 	wsHub  := hub.New()
 	nvdCli := nvd.NewClient(cfg, db)
 	engine := audit.NewEngine(cfg, db, nvdCli)
 
-	// ── 4. Build handlers ─────────────────────────────────────────────────────
 	scanH      := handlers.NewScanHandler(engine, wsHub)
 	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
 	historyH   := handlers.NewHistoryHandler(db)
 	reportH    := handlers.NewReportHandler(db)
 
-	// ── 5. Register routes ────────────────────────────────────────────────────
 	mux := http.NewServeMux()
-
-	// WebSocket — browser connects here for live audit events.
-	mux.HandleFunc("/ws", wsHub.ServeWS)
-
-	// REST API
+	mux.HandleFunc("/ws",           wsHub.ServeWS)
 	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
 	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
 	mux.HandleFunc("/api/discover", discoveryH.Discover)
 	mux.HandleFunc("/api/history",  historyH.List)
 	mux.HandleFunc("/api/history/", routeHistory(historyH))
 	mux.HandleFunc("/api/report/",  reportH.Download)
+	mux.Handle("/",                 spaHandler(cfg.Server.UIDir))
 
-	// Static UI files — fallback to index.html for SPA routing.
-	mux.Handle("/", spaHandler(cfg.Server.UIDir))
-
-	// ── 6. Middleware chain ───────────────────────────────────────────────────
 	handler := withLogging(withCORS(mux))
-
-	// ── 7. Start background tasks ─────────────────────────────────────────────
 	go runCachePruner(db, cfg)
 
-	// ── 8. HTTP server with graceful shutdown ─────────────────────────────────
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0,            // must be 0 — WebSocket connections are long-lived
+		WriteTimeout: 0,
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -94,8 +78,7 @@ func main() {
 	}()
 
 	<-quit
-	log.Println("[main] shutting down — draining connections (10s)...")
-
+	log.Println("[main] shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -104,9 +87,6 @@ func main() {
 	log.Println("[main] stopped cleanly")
 }
 
-// ── Route helpers ─────────────────────────────────────────────────────────────
-
-// routeHistory dispatches /api/history/{id} to Get or Delete based on method.
 func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -121,20 +101,58 @@ func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	}
 }
 
-// spaHandler serves files from dir. If the requested path does not exist as a
-// file, it returns index.html so the JS router can handle it client-side.
+// serveFileDirectly writes a file to the response without any redirects.
+// Unlike http.ServeFile, this never issues a 301 for .html paths.
+func serveFileDirectly(w http.ResponseWriter, path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	// Set content type based on extension
+	switch {
+	case strings.HasSuffix(path, ".html"):
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case strings.HasSuffix(path, ".css"):
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	case strings.HasSuffix(path, ".js"):
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
 func spaHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(dir + r.URL.Path); os.IsNotExist(err) {
-			http.ServeFile(w, r, dir+"/index.html")
+		// Root → landing page, served directly (no redirect)
+		if r.URL.Path == "/" {
+			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
 			return
 		}
+
+		// Strip leading slash to avoid filepath.Join absolute path issue
+		clean := strings.TrimPrefix(r.URL.Path, "/")
+		fullPath := filepath.Join(dir, clean)
+
+		// File does not exist → fall back to landing
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
+			return
+		}
+
+		// HTML files — serve directly to avoid Go's 301 redirect behaviour
+		if strings.HasSuffix(clean, ".html") {
+			serveFileDirectly(w, fullPath)
+			return
+		}
+
+		// Everything else (CSS, JS, assets) — use standard file server
 		fs.ServeHTTP(w, r)
 	})
 }
-
-// ── Middleware ────────────────────────────────────────────────────────────────
 
 func withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -157,9 +175,6 @@ func withCORS(next http.Handler) http.Handler {
 	})
 }
 
-// ── Background tasks ──────────────────────────────────────────────────────────
-
-// runCachePruner removes stale NVD cache rows every hour.
 func runCachePruner(db *sql.DB, cfg models.Config) {
 	ttl := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
@@ -174,33 +189,26 @@ func runCachePruner(db *sql.DB, cfg models.Config) {
 	}
 }
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
 func loadConfig(path string) (models.Config, error) {
 	var cfg models.Config
-
 	f, err := os.Open(path)
 	if err != nil {
 		return cfg, fmt.Errorf("open %q: %w", path, err)
 	}
 	defer f.Close()
-
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
-
-	// Safe defaults — protect against a partially-filled config.yaml.
-	if cfg.Server.Port == 0          { cfg.Server.Port = 8080 }
-	if cfg.Server.UIDir == ""        { cfg.Server.UIDir = "./ui" }
-	if cfg.Server.DBPath == ""       { cfg.Server.DBPath = "./audit.db" }
-	if cfg.Scanner.WorkerCount == 0  { cfg.Scanner.WorkerCount = 100 }
-	if cfg.Scanner.TimeoutMs == 0    { cfg.Scanner.TimeoutMs = 500 }
+	if cfg.Server.Port == 0             { cfg.Server.Port = 8080 }
+	if cfg.Server.UIDir == ""           { cfg.Server.UIDir = "./ui" }
+	if cfg.Server.DBPath == ""          { cfg.Server.DBPath = "./audit.db" }
+	if cfg.Scanner.WorkerCount == 0     { cfg.Scanner.WorkerCount = 100 }
+	if cfg.Scanner.TimeoutMs == 0       { cfg.Scanner.TimeoutMs = 500 }
 	if cfg.Scanner.BannerTimeoutMs == 0 { cfg.Scanner.BannerTimeoutMs = 2000 }
-	if cfg.Discovery.WorkerCount == 0 { cfg.Discovery.WorkerCount = 50 }
-	if cfg.Discovery.TimeoutMs == 0  { cfg.Discovery.TimeoutMs = 800 }
-	if cfg.NVD.BaseURL == ""         { cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0" }
-	if cfg.NVD.CacheTTLHours == 0    { cfg.NVD.CacheTTLHours = 168 }
-	if cfg.NVD.RequestDelayMs == 0   { cfg.NVD.RequestDelayMs = 600 }
-
+	if cfg.Discovery.WorkerCount == 0   { cfg.Discovery.WorkerCount = 50 }
+	if cfg.Discovery.TimeoutMs == 0     { cfg.Discovery.TimeoutMs = 800 }
+	if cfg.NVD.BaseURL == ""            { cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0" }
+	if cfg.NVD.CacheTTLHours == 0       { cfg.NVD.CacheTTLHours = 168 }
+	if cfg.NVD.RequestDelayMs == 0      { cfg.NVD.RequestDelayMs = 600 }
 	return cfg, nil
 }
