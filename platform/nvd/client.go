@@ -16,12 +16,12 @@ import (
 
 // Client queries the NVD API for CVEs and caches results in SQLite.
 type Client struct {
-	apiKey      string
-	baseURL     string
-	ttl         time.Duration
-	delay       time.Duration
-	db          *sql.DB
-	httpClient  *http.Client
+	apiKey     string
+	baseURL    string
+	ttl        time.Duration
+	delay      time.Duration
+	db         *sql.DB
+	httpClient *http.Client
 }
 
 // NewClient constructs an NVD Client from the app config.
