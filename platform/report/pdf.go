@@ -44,7 +44,7 @@ const (
 	colBgGreen = "#F0FDF4"
 )
 
-	var eat = time.FixedZone("EAT", 3*3600)
+var eat = time.FixedZone("EAT", 3*3600)
 
 // Generate builds a PDF from data and returns the raw bytes.
 func Generate(data Data) ([]byte, error) {
@@ -347,7 +347,7 @@ func drawFooter(pdf *gofpdf.Fpdf, data Data) {
 	pdf.CellFormat(0, 5,
 		fmt.Sprintf("SME-Shield  |  Report SCN-%04d  |  %s",
 			data.ScanID,
-				data.ScanTime.In(eat).Format("02 Jan 2006")),
+			data.ScanTime.In(eat).Format("02 Jan 2006")),
 		"", 0, "C", false, 0, "")
 }
 
