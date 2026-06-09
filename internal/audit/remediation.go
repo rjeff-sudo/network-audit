@@ -34,12 +34,12 @@ var remediationDB = map[string]string{
 	"CVE-2020-0796":  "Apply KB4551762 patch immediately. SMBGhost — unauthenticated RCE in SMBv3 compression.",
 	"CVE-2021-34527": "Apply July 2021 Windows patches immediately. PrintNightmare — RCE via Windows Print Spooler.",
 
-	"CVE-2019-0708":  "Apply MS19-0708 patch immediately. BlueKeep — critical pre-auth RCE in RDP. Block port 3389 externally.",
-	"CVE-2019-1181":  "Apply August 2019 patches. DejaBlue — wormable pre-auth RCE in RDP similar to BlueKeep.",
+	"CVE-2019-0708": "Apply MS19-0708 patch immediately. BlueKeep — critical pre-auth RCE in RDP. Block port 3389 externally.",
+	"CVE-2019-1181": "Apply August 2019 patches. DejaBlue — wormable pre-auth RCE in RDP similar to BlueKeep.",
 
-	"CVE-2015-3306":  "Update ProFTPD to 1.3.5a+. Backdoor command allows unauthenticated filesystem access.",
+	"CVE-2015-3306": "Update ProFTPD to 1.3.5a+. Backdoor command allows unauthenticated filesystem access.",
 
-	"CVE-2011-4862":  "Disable Telnet immediately and replace with SSH. All Telnet traffic is transmitted in plaintext.",
+	"CVE-2011-4862": "Disable Telnet immediately and replace with SSH. All Telnet traffic is transmitted in plaintext.",
 }
 
 var productFallbacks = map[string]string{

@@ -136,11 +136,11 @@ type WSMessage struct {
 
 // Defined Type constants — the browser switches on these.
 const (
-	WSTypeProgress  = "SCAN_PROGRESS"  // audit is running
-	WSTypePortFound = "PORT_FOUND"     // a port has been analysed
-	WSTypeComplete  = "SCAN_COMPLETE"  // audit finished
-	WSTypeError     = "SCAN_ERROR"     // audit failed
-	WSTypeDevices   = "DEVICES_FOUND"  // discovery results
+	WSTypeProgress  = "SCAN_PROGRESS" // audit is running
+	WSTypePortFound = "PORT_FOUND"    // a port has been analysed
+	WSTypeComplete  = "SCAN_COMPLETE" // audit finished
+	WSTypeError     = "SCAN_ERROR"    // audit failed
+	WSTypeDevices   = "DEVICES_FOUND" // discovery results
 )
 
 // WSPayloadProgress is sent periodically while a scan runs.
@@ -151,12 +151,12 @@ type WSPayloadProgress struct {
 
 // WSPayloadPortFound is sent each time an open port is fully analysed.
 type WSPayloadPortFound struct {
-	IP      string `json:"ip"`
-	Port    int    `json:"port"`
-	Service string `json:"service"`
-	Product string `json:"product"`
-	Version string `json:"version"`
-	CVECount int   `json:"cve_count"`
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	Service  string `json:"service"`
+	Product  string `json:"product"`
+	Version  string `json:"version"`
+	CVECount int    `json:"cve_count"`
 }
 
 // WSPayloadComplete is sent when the full audit is done.
