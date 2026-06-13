@@ -1,7 +1,7 @@
 server:
   port: 8080
   ui_dir: "./ui"
-  db_path: "./audit.db"
+  db_path: "./data/audit.db"   # stored in the Docker volume (or ./data/ locally)
 
 scanner:
   worker_count: 100
@@ -43,8 +43,6 @@ discovery:
     - 3306
 
 nvd:
-  # Get a free key at: https://nvd.nist.gov/developers/request-an-api-key
-  # Without a key you get 5 req/30s. With a key: 50 req/30s.
   api_key: ""
   base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
   cache_ttl_hours: 168

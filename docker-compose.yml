@@ -1,0 +1,53 @@
+version: "3.9"
+
+# ── SME-Shield ────────────────────────────────────────────────────────────────
+#
+# NETWORK MODE — IMPORTANT:
+#
+#   network_mode: host  makes the container share the host machine's real
+#   network interface. This is required for device discovery to work —
+#   without it the scanner sees Docker's internal network (172.17.x.x)
+#   instead of your office/home network (192.168.x.x).
+#
+#   Supported on:  Linux (rootless and rootful Docker)
+#   Not supported: Docker Desktop on macOS or Windows
+#
+#   If you are on macOS or Windows, comment out `network_mode: host` and
+#   uncomment the `ports` block instead. Device discovery will not work
+#   but the rest of the app (manual IP audit, PDF reports) will.
+#
+services:
+  sme-shield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sme-shield
+    image: sme-shield:latest
+
+    # Host networking — gives the scanner access to the real local network.
+    # Remove this and uncomment `ports` below if you are on macOS or Windows.
+    network_mode: host
+
+    # Uncomment this block if host networking is not available on your system.
+    # ports:
+    #   - "8080:8080"
+
+    volumes:
+      # Persist the SQLite database between container restarts.
+      # audit.db is stored in ./data/ on the host machine.
+      - ./data:/app/data
+
+    environment:
+      - TZ=Africa/Nairobi
+
+    # Restart automatically if the container crashes or the machine reboots.
+    restart: unless-stopped
+
+    # Health check — Docker will restart the container if the app stops
+    # responding to HTTP requests.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
