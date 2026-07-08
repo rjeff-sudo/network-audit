@@ -1,36 +1,45 @@
 server:
   port: 8080
   ui_dir: "./ui"
-  db_path: "./data/audit.db"   # stored in the Docker volume (or ./data/ locally)
+  db_path: "./data/audit.db"
+
+auth:
+  username: "admin"
+  password: "sme-shield-2026"
+  # Change this to any long random string — it signs the session cookies.
+  # Generate one with: openssl rand -hex 32
+  session_secret: "change-this-to-a-random-secret-string"
+  # How long a login session lasts (hours)
+  session_ttl_hours: 24
 
 scanner:
   worker_count: 100
   timeout_ms: 500
   banner_timeout_ms: 2000
   ports:
-    - 21    # FTP
-    - 22    # SSH
-    - 23    # Telnet
-    - 25    # SMTP
-    - 53    # DNS
-    - 80    # HTTP
-    - 110   # POP3
-    - 135   # RPC
-    - 139   # NetBIOS
-    - 143   # IMAP
-    - 443   # HTTPS
-    - 445   # SMB
-    - 993   # IMAPS
-    - 995   # POP3S
-    - 1433  # MSSQL
-    - 3306  # MySQL
-    - 3389  # RDP
-    - 5432  # PostgreSQL
-    - 5900  # VNC
-    - 6379  # Redis
-    - 8080  # HTTP-Alt
-    - 8443  # HTTPS-Alt
-    - 27017 # MongoDB
+    - 21
+    - 22
+    - 23
+    - 25
+    - 53
+    - 80
+    - 110
+    - 135
+    - 139
+    - 143
+    - 443
+    - 445
+    - 993
+    - 995
+    - 1433
+    - 3306
+    - 3389
+    - 5432
+    - 5900
+    - 6379
+    - 8080
+    - 8443
+    - 27017
 
 discovery:
   worker_count: 50

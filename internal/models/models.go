@@ -33,6 +33,13 @@ type Config struct {
 		CacheTTLHours  int    `yaml:"cache_ttl_hours"`
 		RequestDelayMs int    `yaml:"request_delay_ms"`
 	} `yaml:"nvd"`
+
+	Auth struct {
+    Username        string `yaml:"username"`
+    Password        string `yaml:"password"`
+    SessionSecret   string `yaml:"session_secret"`
+    SessionTTLHours int    `yaml:"session_ttl_hours"`
+    } `yaml:"auth"`
 }
 
 // ── Network discovery ─────────────────────────────────────────────────────────
