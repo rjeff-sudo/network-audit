@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/rjeff-sudo/sme-shield/internal/audit"
+	"github.com/rjeff-sudo/sme-shield/internal/auth"
 	"github.com/rjeff-sudo/sme-shield/internal/handlers"
 	"github.com/rjeff-sudo/sme-shield/internal/hub"
 	"github.com/rjeff-sudo/sme-shield/internal/models"
@@ -24,40 +25,62 @@ import (
 )
 
 func main() {
+	// ── 1. Load config ────────────────────────────────────────────────────────
 	cfg, err := loadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("[main] load config: %v", err)
 	}
 	log.Printf("[main] config loaded — port %d, db %s", cfg.Server.Port, cfg.Server.DBPath)
 
+	// ── 2. Open database ──────────────────────────────────────────────────────
 	db, err := platformDB.Open(cfg.Server.DBPath)
 	if err != nil {
 		log.Fatalf("[main] open database: %v", err)
 	}
 	defer db.Close()
 
+	// ── 3. Build shared dependencies ──────────────────────────────────────────
 	wsHub  := hub.New()
 	nvdCli := nvd.NewClient(cfg, db)
 	engine := audit.NewEngine(cfg, db, nvdCli)
+	authSvc := auth.New(cfg.Auth)
 
+	// ── 4. Build handlers ─────────────────────────────────────────────────────
 	scanH      := handlers.NewScanHandler(engine, wsHub)
 	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
 	historyH   := handlers.NewHistoryHandler(db)
 	reportH    := handlers.NewReportHandler(db)
+	loginH     := handlers.NewLoginHandler(authSvc)
 
+	// ── 5. Register routes ────────────────────────────────────────────────────
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws",           wsHub.ServeWS)
+
+	// Auth routes — public
+	mux.HandleFunc("/login",  loginH.ServeHTTP)
+	mux.HandleFunc("/logout", loginH.Logout)
+
+	// WebSocket
+	mux.HandleFunc("/ws", wsHub.ServeWS)
+
+	// REST API — protected by auth middleware
 	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
 	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
 	mux.HandleFunc("/api/discover", discoveryH.Discover)
 	mux.HandleFunc("/api/history",  historyH.List)
 	mux.HandleFunc("/api/history/", routeHistory(historyH))
 	mux.HandleFunc("/api/report/",  reportH.Download)
-	mux.Handle("/",                 spaHandler(cfg.Server.UIDir))
 
-	handler := withLogging(withCORS(mux))
+	// Static UI files
+	mux.Handle("/", spaHandler(cfg.Server.UIDir))
+
+	// ── 6. Middleware chain ────────────────────────────────────────────────────
+	// Auth wraps everything — it handles its own exceptions internally.
+	handler := withLogging(withCORS(authSvc.Middleware(mux)))
+
+	// ── 7. Background tasks ───────────────────────────────────────────────────
 	go runCachePruner(db, cfg)
 
+	// ── 8. HTTP server with graceful shutdown ─────────────────────────────────
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:         addr,
@@ -87,6 +110,8 @@ func main() {
 	log.Println("[main] stopped cleanly")
 }
 
+// ── Route helpers ─────────────────────────────────────────────────────────────
+
 func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -101,15 +126,13 @@ func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	}
 }
 
-// serveFileDirectly writes a file to the response without any redirects.
-// Unlike http.ServeFile, this never issues a 301 for .html paths.
+// serveFileDirectly writes a file directly without Go's 301 redirect on .html paths.
 func serveFileDirectly(w http.ResponseWriter, path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	// Set content type based on extension
 	switch {
 	case strings.HasSuffix(path, ".html"):
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -127,32 +150,25 @@ func serveFileDirectly(w http.ResponseWriter, path string) {
 func spaHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Root → landing page, served directly (no redirect)
 		if r.URL.Path == "/" {
 			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
 			return
 		}
-
-		// Strip leading slash to avoid filepath.Join absolute path issue
-		clean := strings.TrimPrefix(r.URL.Path, "/")
+		clean    := strings.TrimPrefix(r.URL.Path, "/")
 		fullPath := filepath.Join(dir, clean)
-
-		// File does not exist → fall back to landing
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
 			return
 		}
-
-		// HTML files — serve directly to avoid Go's 301 redirect behaviour
 		if strings.HasSuffix(clean, ".html") {
 			serveFileDirectly(w, fullPath)
 			return
 		}
-
-		// Everything else (CSS, JS, assets) — use standard file server
 		fs.ServeHTTP(w, r)
 	})
 }
+
+// ── Middleware ─────────────────────────────────────────────────────────────────
 
 func withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,8 +191,10 @@ func withCORS(next http.Handler) http.Handler {
 	})
 }
 
+// ── Background tasks ──────────────────────────────────────────────────────────
+
 func runCachePruner(db *sql.DB, cfg models.Config) {
-	ttl := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
+	ttl    := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -189,6 +207,8 @@ func runCachePruner(db *sql.DB, cfg models.Config) {
 	}
 }
 
+// ── Config ────────────────────────────────────────────────────────────────────
+
 func loadConfig(path string) (models.Config, error) {
 	var cfg models.Config
 	f, err := os.Open(path)
@@ -199,14 +219,19 @@ func loadConfig(path string) (models.Config, error) {
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
+	// Safe defaults
 	if cfg.Server.Port == 0             { cfg.Server.Port = 8080 }
 	if cfg.Server.UIDir == ""           { cfg.Server.UIDir = "./ui" }
-	if cfg.Server.DBPath == ""          { cfg.Server.DBPath = "./audit.db" }
+	if cfg.Server.DBPath == ""          { cfg.Server.DBPath = "./data/audit.db" }
+	if cfg.Auth.Username == ""          { cfg.Auth.Username = "admin" }
+	if cfg.Auth.Password == ""          { cfg.Auth.Password = "sme-shield" }
+	if cfg.Auth.SessionSecret == ""     { cfg.Auth.SessionSecret = "default-secret-change-me" }
+	if cfg.Auth.SessionTTLHours == 0    { cfg.Auth.SessionTTLHours = 24 }
 	if cfg.Scanner.WorkerCount == 0     { cfg.Scanner.WorkerCount = 100 }
 	if cfg.Scanner.TimeoutMs == 0       { cfg.Scanner.TimeoutMs = 500 }
 	if cfg.Scanner.BannerTimeoutMs == 0 { cfg.Scanner.BannerTimeoutMs = 2000 }
 	if cfg.Discovery.WorkerCount == 0   { cfg.Discovery.WorkerCount = 50 }
-	if cfg.Discovery.TimeoutMs == 0     { cfg.Discovery.TimeoutMs = 800 }
+	if cfg.Discovery.TimeoutMs == 0     { cfg.Discovery.TimeoutMs = 200 }
 	if cfg.NVD.BaseURL == ""            { cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0" }
 	if cfg.NVD.CacheTTLHours == 0       { cfg.NVD.CacheTTLHours = 168 }
 	if cfg.NVD.RequestDelayMs == 0      { cfg.NVD.RequestDelayMs = 600 }
