@@ -392,9 +392,21 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         </button>
       </div>
 
-      <div id="ws-status" class="ws-pill" role="status" aria-live="polite">
-        <span class="ws-dot pulsing" id="ws-dot"></span>
-        <span id="ws-text">Connecting</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="ws-status" class="ws-pill" role="status" aria-live="polite">
+          <span class="ws-dot pulsing" id="ws-dot"></span>
+          <span id="ws-text">Connecting</span>
+        </div>
+        <a href="/logout"
+          style="font-family:var(--font);font-size:12px;font-weight:500;
+                 color:var(--stone);text-decoration:none;
+                 border:1px solid rgba(227,204,192,0.15);border-radius:9999px;
+                 padding:5px 14px;transition:border-color 0.15s,color 0.15s;"
+          onmouseover="this.style.borderColor='rgba(248,113,113,0.4)';this.style.color='var(--red)'"
+          onmouseout="this.style.borderColor='rgba(227,204,192,0.15)';this.style.color='var(--stone)'"
+          aria-label="Sign out">
+          Sign out
+        </a>
       </div>
 
     </div>
