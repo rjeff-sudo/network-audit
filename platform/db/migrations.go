@@ -42,4 +42,17 @@ var migrations = []string{
 		version    INTEGER PRIMARY KEY,
 		applied_at TEXT NOT NULL
 	)`,
+
+	// v5 — users table (replaces plaintext password in config.yaml)
+	`CREATE TABLE IF NOT EXISTS users (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		username     TEXT    NOT NULL UNIQUE,
+		password_hash TEXT   NOT NULL,
+		created_at   TEXT    NOT NULL,
+		updated_at   TEXT    NOT NULL
+	)`,
+ 
+	// v6 — index on username for fast login lookups
+	`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+ 
 }
