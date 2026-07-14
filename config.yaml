@@ -7,7 +7,7 @@ auth:
   # Username and password are now set via the /setup page on first run.
   # Only the session secret lives here — change it to a long random string.
   # Generate one with: openssl rand -hex 32
-  session_secret: "change-this-to-a-random-secret-string"
+  session_secret: "12345678"
   session_ttl_hours: 168
 
 scanner:
