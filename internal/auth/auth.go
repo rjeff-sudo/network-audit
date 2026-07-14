@@ -1,46 +1,132 @@
 // Package auth handles session-based authentication for SME-Shield.
-// It uses a signed cookie (HMAC-SHA256) — no external dependencies needed.
+// Passwords are hashed with bcrypt and stored in SQLite.
+// Sessions use HMAC-SHA256 signed cookies — no external dependencies.
 package auth
 
 import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-const cookieName = "sme_session"
+const (
+	cookieName  = "sme_session"
+	bcryptCost  = 12 // work factor — higher = slower = harder to brute force
+)
 
-// Config holds the auth credentials loaded from config.yaml.
+// Config holds auth settings from config.yaml.
 type Config struct {
-	Username       string `yaml:"username"`
-	Password       string `yaml:"password"`
-	SessionSecret  string `yaml:"session_secret"`
-	SessionTTLHours int   `yaml:"session_ttl_hours"`
+	SessionSecret   string `yaml:"session_secret"`
+	SessionTTLHours int    `yaml:"session_ttl_hours"`
 }
 
-// Auth handles login checks and session management.
+// Auth handles all authentication logic.
 type Auth struct {
 	cfg Config
+	db  *sql.DB
 }
 
 // New creates an Auth instance.
-func New(cfg Config) *Auth {
-	return &Auth{cfg: cfg}
+func New(cfg Config, db *sql.DB) *Auth {
+	return &Auth{cfg: cfg, db: db}
 }
 
-// CheckCredentials returns true if the username and password are correct.
-func (a *Auth) CheckCredentials(username, password string) bool {
-	return username == a.cfg.Username && password == a.cfg.Password
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+// IsSetupDone returns true if at least one user exists in the database.
+func (a *Auth) IsSetupDone() bool {
+	var count int
+	a.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
+	return count > 0
 }
+
+// CreateUser hashes the password with bcrypt and inserts a new user.
+// Returns an error if the username already exists.
+func (a *Auth) CreateUser(username, password string) error {
+	if username == "" || password == "" {
+		return fmt.Errorf("username and password are required")
+	}
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = a.db.Exec(
+		`INSERT INTO users (username, password_hash, created_at, updated_at)
+		 VALUES (?, ?, ?, ?)`,
+		username, string(hash), now, now,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return fmt.Errorf("username already exists")
+		}
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+
+// CheckCredentials returns true if username exists and password matches the hash.
+func (a *Auth) CheckCredentials(username, password string) bool {
+	var hash string
+	err := a.db.QueryRow(
+		`SELECT password_hash FROM users WHERE username = ?`, username).
+		Scan(&hash)
+	if err != nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+// ── Password change ───────────────────────────────────────────────────────────
+
+// ChangePassword verifies the current password then updates the hash.
+func (a *Auth) ChangePassword(username, currentPassword, newPassword string) error {
+	if !a.CheckCredentials(username, currentPassword) {
+		return fmt.Errorf("current password is incorrect")
+	}
+	if len(newPassword) < 8 {
+		return fmt.Errorf("new password must be at least 8 characters")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = a.db.Exec(
+		`UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?`,
+		string(hash), now, username,
+	)
+	return err
+}
+
+// GetUsername returns the username of the first (and only) user.
+func (a *Auth) GetUsername() string {
+	var username string
+	a.db.QueryRow(`SELECT username FROM users LIMIT 1`).Scan(&username)
+	return username
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
 
 // SetSession writes a signed session cookie to the response.
 func (a *Auth) SetSession(w http.ResponseWriter) {
-	// token = random_nonce:timestamp:hmac
 	nonce := randomHex(16)
 	ts    := fmt.Sprintf("%d", time.Now().Unix())
 	raw   := nonce + ":" + ts
@@ -49,7 +135,7 @@ func (a *Auth) SetSession(w http.ResponseWriter) {
 
 	ttl := a.cfg.SessionTTLHours
 	if ttl == 0 {
-		ttl = 24
+		ttl = 168
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -57,7 +143,7 @@ func (a *Auth) SetSession(w http.ResponseWriter) {
 		Value:    value,
 		Path:     "/",
 		MaxAge:   ttl * 3600,
-		HttpOnly: true,  // not accessible from JS — XSS protection
+		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -73,7 +159,7 @@ func (a *Auth) ClearSession(w http.ResponseWriter) {
 	})
 }
 
-// IsAuthenticated returns true if the request has a valid session cookie.
+// IsAuthenticated returns true if the request has a valid unexpired session.
 func (a *Auth) IsAuthenticated(r *http.Request) bool {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
@@ -82,37 +168,42 @@ func (a *Auth) IsAuthenticated(r *http.Request) bool {
 	return a.validateToken(cookie.Value)
 }
 
-// Middleware wraps a handler and redirects to /login if not authenticated.
-// API routes return 401 JSON instead of redirecting.
+// ── Middleware ────────────────────────────────────────────────────────────────
+
+// Middleware protects all routes, redirecting unauthenticated requests.
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Always allow the login page and its POST handler
-		if r.URL.Path == "/login" {
+		path := r.URL.Path
+
+		// Always public — setup, login, logout, landing, static assets
+		if path == "/setup" || path == "/login" ||
+			path == "/logout" || path == "/landing.html" ||
+			isPublicAsset(path) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Always allow static assets (CSS, JS, fonts)
-		if isPublicAsset(r.URL.Path) {
-			next.ServeHTTP(w, r)
+		// If setup not done, force setup page
+		if !a.IsSetupDone() {
+			if strings.HasPrefix(path, "/api/") || path == "/ws" {
+				jsonUnauthorized(w)
+				return
+			}
+			http.Redirect(w, r, "/setup", http.StatusFound)
 			return
 		}
 
+		// Check session
 		if a.IsAuthenticated(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// API routes — return 401 JSON
-		if strings.HasPrefix(r.URL.Path, "/api/") ||
-			strings.HasPrefix(r.URL.Path, "/ws") {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"unauthorized"}`))
+		// Not authenticated
+		if strings.HasPrefix(path, "/api/") || path == "/ws" {
+			jsonUnauthorized(w)
 			return
 		}
-
-		// All other routes — redirect to login
 		http.Redirect(w, r, "/login", http.StatusFound)
 	})
 }
@@ -130,18 +221,16 @@ func (a *Auth) validateToken(value string) bool {
 	if len(parts) != 3 {
 		return false
 	}
-	raw := parts[0] + ":" + parts[1]
+	raw         := parts[0] + ":" + parts[1]
 	expectedSig := a.sign(raw)
 	if !hmac.Equal([]byte(expectedSig), []byte(parts[2])) {
 		return false
 	}
-
-	// Check expiry
 	var ts int64
 	fmt.Sscanf(parts[1], "%d", &ts)
 	ttl := a.cfg.SessionTTLHours
 	if ttl == 0 {
-		ttl = 24
+		ttl = 168
 	}
 	expiry := time.Unix(ts, 0).Add(time.Duration(ttl) * time.Hour)
 	return time.Now().Before(expiry)
@@ -153,11 +242,13 @@ func isPublicAsset(path string) bool {
 			return true
 		}
 	}
-	// Landing page is public
-	if path == "/landing.html" {
-		return true
-	}
 	return false
+}
+
+func jsonUnauthorized(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Write([]byte(`{"error":"unauthorized"}`))
 }
 
 func randomHex(n int) string {
