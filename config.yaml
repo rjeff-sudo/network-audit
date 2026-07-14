@@ -4,13 +4,11 @@ server:
   db_path: "./data/audit.db"
 
 auth:
-  username: "admin"
-  password: "sme-shield-2026"
-  # Change this to any long random string — it signs the session cookies.
+  # Username and password are now set via the /setup page on first run.
+  # Only the session secret lives here — change it to a long random string.
   # Generate one with: openssl rand -hex 32
   session_secret: "change-this-to-a-random-secret-string"
-  # How long a login session lasts (hours)
-  session_ttl_hours: 24
+  session_ttl_hours: 168
 
 scanner:
   worker_count: 100
