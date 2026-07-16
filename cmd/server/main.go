@@ -25,44 +25,42 @@ import (
 )
 
 func main() {
-	// ── 1. Load config ────────────────────────────────────────────────────────
 	cfg, err := loadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("[main] load config: %v", err)
 	}
 	log.Printf("[main] config loaded — port %d, db %s", cfg.Server.Port, cfg.Server.DBPath)
 
-	// ── 2. Open database ──────────────────────────────────────────────────────
 	db, err := platformDB.Open(cfg.Server.DBPath)
 	if err != nil {
 		log.Fatalf("[main] open database: %v", err)
 	}
 	defer db.Close()
 
-	// ── 3. Build shared dependencies ──────────────────────────────────────────
-	wsHub  := hub.New()
-	nvdCli := nvd.NewClient(cfg, db)
-	engine := audit.NewEngine(cfg, db, nvdCli)
-	authSvc := auth.New(cfg.Auth)
+	wsHub   := hub.New()
+	nvdCli  := nvd.NewClient(cfg, db)
+	engine  := audit.NewEngine(cfg, db, nvdCli)
+	authSvc := auth.New(cfg.Auth, db)
 
-	// ── 4. Build handlers ─────────────────────────────────────────────────────
 	scanH      := handlers.NewScanHandler(engine, wsHub)
 	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
 	historyH   := handlers.NewHistoryHandler(db)
 	reportH    := handlers.NewReportHandler(db)
 	loginH     := handlers.NewLoginHandler(authSvc)
+	setupH     := handlers.NewSetupHandler(authSvc)
 
-	// ── 5. Register routes ────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// Auth routes — public
-	mux.HandleFunc("/login",  loginH.ServeHTTP)
-	mux.HandleFunc("/logout", loginH.Logout)
+	// Public auth routes
+	mux.HandleFunc("/setup",      setupH.ServeHTTP)
+	mux.HandleFunc("/api/setup",  setupH.Create)
+	mux.HandleFunc("/login",      loginH.ServeHTTP)
+	mux.HandleFunc("/logout",     loginH.Logout)
 
 	// WebSocket
 	mux.HandleFunc("/ws", wsHub.ServeWS)
 
-	// REST API — protected by auth middleware
+	// Protected API
 	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
 	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
 	mux.HandleFunc("/api/discover", discoveryH.Discover)
@@ -70,17 +68,12 @@ func main() {
 	mux.HandleFunc("/api/history/", routeHistory(historyH))
 	mux.HandleFunc("/api/report/",  reportH.Download)
 
-	// Static UI files
+	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
 
-	// ── 6. Middleware chain ────────────────────────────────────────────────────
-	// Auth wraps everything — it handles its own exceptions internally.
 	handler := withLogging(withCORS(authSvc.Middleware(mux)))
-
-	// ── 7. Background tasks ───────────────────────────────────────────────────
 	go runCachePruner(db, cfg)
 
-	// ── 8. HTTP server with graceful shutdown ─────────────────────────────────
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:         addr,
@@ -110,8 +103,6 @@ func main() {
 	log.Println("[main] stopped cleanly")
 }
 
-// ── Route helpers ─────────────────────────────────────────────────────────────
-
 func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -126,7 +117,6 @@ func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	}
 }
 
-// serveFileDirectly writes a file directly without Go's 301 redirect on .html paths.
 func serveFileDirectly(w http.ResponseWriter, path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -168,8 +158,6 @@ func spaHandler(dir string) http.Handler {
 	})
 }
 
-// ── Middleware ─────────────────────────────────────────────────────────────────
-
 func withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -191,8 +179,6 @@ func withCORS(next http.Handler) http.Handler {
 	})
 }
 
-// ── Background tasks ──────────────────────────────────────────────────────────
-
 func runCachePruner(db *sql.DB, cfg models.Config) {
 	ttl    := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
@@ -207,8 +193,6 @@ func runCachePruner(db *sql.DB, cfg models.Config) {
 	}
 }
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
 func loadConfig(path string) (models.Config, error) {
 	var cfg models.Config
 	f, err := os.Open(path)
@@ -219,14 +203,11 @@ func loadConfig(path string) (models.Config, error) {
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
-	// Safe defaults
 	if cfg.Server.Port == 0             { cfg.Server.Port = 8080 }
 	if cfg.Server.UIDir == ""           { cfg.Server.UIDir = "./ui" }
 	if cfg.Server.DBPath == ""          { cfg.Server.DBPath = "./data/audit.db" }
-	if cfg.Auth.Username == ""          { cfg.Auth.Username = "admin" }
-	if cfg.Auth.Password == ""          { cfg.Auth.Password = "sme-shield" }
 	if cfg.Auth.SessionSecret == ""     { cfg.Auth.SessionSecret = "default-secret-change-me" }
-	if cfg.Auth.SessionTTLHours == 0    { cfg.Auth.SessionTTLHours = 24 }
+	if cfg.Auth.SessionTTLHours == 0    { cfg.Auth.SessionTTLHours = 168 }
 	if cfg.Scanner.WorkerCount == 0     { cfg.Scanner.WorkerCount = 100 }
 	if cfg.Scanner.TimeoutMs == 0       { cfg.Scanner.TimeoutMs = 500 }
 	if cfg.Scanner.BannerTimeoutMs == 0 { cfg.Scanner.BannerTimeoutMs = 2000 }

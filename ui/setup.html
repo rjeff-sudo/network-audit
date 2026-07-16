@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SME-Shield — Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cocoa:  #200f0a;
+  --plum:   #2b2538;
+  --cream:  #fcfaf9;
+  --sand:   #e3ccc0;
+  --stone:  #a69f9d;
+  --mint:   #a2f6f5;
+  --iris:   #858df9;
+  --red:    #f87171;
+  --green:  #4ade80;
+  --font:   'Inter',ui-sans-serif,system-ui,sans-serif;
+  --mono:   'JetBrains Mono',ui-monospace,monospace;
+  --ease:   cubic-bezier(0.16,1,0.3,1);
+}
+html{height:100%}
+body{
+  background:var(--cocoa);color:var(--cream);
+  font-family:var(--font);font-size:15px;
+  line-height:1.5;min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px;
+}
+:focus-visible{outline:2px solid var(--mint);outline-offset:3px;border-radius:4px}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;
+  background-image:
+    linear-gradient(rgba(227,204,192,0.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(227,204,192,0.04) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none;
+}
+
+.card{
+  position:relative;z-index:1;
+  background:var(--plum);
+  border:1px solid rgba(227,204,192,0.12);
+  border-radius:8px;padding:40px;
+  width:100%;max-width:420px;
+  animation:cardIn 0.6s var(--ease) both;
+}
+@keyframes cardIn{
+  from{opacity:0;transform:translateY(20px) scale(0.98)}
+  to  {opacity:1;transform:translateY(0)    scale(1)}
+}
+
+/* Logo */
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+.logo-mark{
+  width:32px;height:32px;border-radius:7px;
+  border:1px solid rgba(227,204,192,0.2);
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(162,246,245,0.06);
+}
+.logo-name{font-size:14px;font-weight:500;letter-spacing:0.04em}
+
+/* Step indicator */
+.steps{
+  display:flex;gap:6px;margin-bottom:28px;
+}
+.step-dot{
+  height:3px;border-radius:99px;flex:1;
+  background:rgba(227,204,192,0.15);transition:background 0.3s;
+}
+.step-dot.active{background:var(--mint)}
+.step-dot.done  {background:rgba(162,246,245,0.4)}
+
+/* Headings */
+.heading{
+  font-size:22px;font-weight:300;
+  letter-spacing:-0.01em;margin-bottom:6px;
+}
+.heading .mint{color:var(--mint)}
+.subheading{font-size:13px;font-weight:300;color:var(--stone);margin-bottom:28px;line-height:1.6}
+
+/* Fields */
+.field{margin-bottom:16px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--stone);margin-bottom:7px;
+}
+.field input{
+  font-family:var(--font);font-size:14px;
+  color:var(--cream);background:var(--cocoa);
+  border:1px solid rgba(227,204,192,0.18);
+  border-radius:4px;padding:11px 14px;
+  outline:none;width:100%;
+  transition:border-color 0.15s,box-shadow 0.15s;
+}
+.field input::placeholder{color:var(--stone);opacity:0.6}
+.field input:focus{
+  border-color:var(--mint);
+  box-shadow:0 0 0 3px rgba(162,246,245,0.08);
+}
+.field input.error{border-color:rgba(248,113,113,0.5)}
+
+/* Password strength */
+.strength-wrap{margin-top:6px;display:none}
+.strength-track{
+  height:2px;background:rgba(227,204,192,0.12);
+  border-radius:99px;overflow:hidden;margin-bottom:4px;
+}
+.strength-fill{height:100%;width:0;border-radius:99px;transition:width 0.3s,background 0.3s}
+.strength-label{font-size:11px;color:var(--stone)}
+
+/* Hint */
+.field-hint{font-size:11px;color:var(--stone);margin-top:5px}
+
+/* Error banner */
+.error-banner{
+  display:none;align-items:center;gap:10px;
+  background:rgba(248,113,113,0.08);
+  border:1px solid rgba(248,113,113,0.25);
+  border-radius:6px;padding:11px 14px;
+  margin-bottom:18px;
+}
+.error-banner.show{display:flex}
+.error-text{font-size:13px;color:var(--red)}
+
+/* Button */
+.btn-submit{
+  font-family:var(--font);font-size:14px;font-weight:500;
+  color:var(--cocoa);background:var(--mint);
+  border:none;border-radius:9999px;
+  padding:13px 0;width:100%;cursor:pointer;
+  margin-top:8px;
+  transition:opacity 0.15s,transform 0.1s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-submit:hover{opacity:0.88;transform:translateY(-1px)}
+.btn-submit:active{transform:translateY(0)}
+.btn-submit:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+
+.spinner{
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(32,15,10,0.3);
+  border-top-color:var(--cocoa);
+  animation:spin 0.7s linear infinite;display:none;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Success state */
+.success-state{
+  display:none;text-align:center;padding:16px 0;
+}
+.success-icon{
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(74,222,128,0.1);
+  border:1px solid rgba(74,222,128,0.3);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 16px;
+}
+.success-title{font-size:18px;font-weight:300;margin-bottom:8px}
+.success-sub{font-size:13px;color:var(--stone);margin-bottom:24px}
+
+/* Footer */
+.card-footer{
+  margin-top:24px;padding-top:18px;
+  border-top:1px solid rgba(227,204,192,0.08);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-footer .hint{
+  font-family:var(--mono);font-size:11px;
+  color:var(--stone);display:flex;align-items:center;gap:6px;
+}
+.hint-dot{width:5px;height:5px;border-radius:50%;background:var(--mint)}
+</style>
+</head>
+<body>
+<div class="card" role="main">
+
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 1L2 3.5V7.5C2 11 4.5 14.2 8 15C11.5 14.2 14 11 14 7.5V3.5L8 1Z"
+          stroke="#fcfaf9" stroke-width="1.1" fill="none"/>
+        <path d="M5.5 7.5l2 2 3-3" stroke="#fcfaf9"
+          stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="logo-name">SME-SHIELD</span>
+  </div>
+
+  <!-- Step dots -->
+  <div class="steps" aria-label="Setup progress">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <!-- Form -->
+  <div id="form-wrap">
+    <h1 class="heading">Welcome to <span class="mint">SME-Shield</span></h1>
+    <p class="subheading">
+      This is your first time running SME-Shield. Create your admin account
+      to secure access to your dashboard.
+    </p>
+
+    <div id="error-banner" class="error-banner" role="alert">
+      <p class="error-text" id="error-text">Something went wrong.</p>
+    </div>
+
+    <form id="setup-form" novalidate>
+
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text"
+          placeholder="Choose a username"
+          autocomplete="username" required/>
+        <p class="field-hint">You will use this to log in every time.</p>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password"
+          placeholder="Choose a strong password"
+          autocomplete="new-password" required/>
+        <div class="strength-wrap" id="strength-wrap">
+          <div class="strength-track">
+            <div class="strength-fill" id="strength-fill"></div>
+          </div>
+          <p class="strength-label" id="strength-label">Too short</p>
+        </div>
+        <p class="field-hint">Minimum 8 characters.</p>
+      </div>
+
+      <div class="field">
+        <label for="confirm">Confirm Password</label>
+        <input id="confirm" name="confirm" type="password"
+          placeholder="Repeat your password"
+          autocomplete="new-password" required/>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-submit">
+        <span class="spinner" id="spinner" aria-hidden="true"></span>
+        <span id="btn-text">Create account</span>
+      </button>
+
+    </form>
+  </div>
+
+  <!-- Success state -->
+  <div id="success-state" class="success-state">
+    <div class="success-icon" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M5 11.5l4 4 8-8" stroke="#4ade80"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="success-title">Account created!</p>
+    <p class="success-sub">Redirecting you to the login page...</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="card-footer">
+    <span style="font-size:12px;color:var(--stone)">First time setup</span>
+    <span class="hint">
+      <span class="hint-dot" aria-hidden="true"></span>
+      Password stored securely with bcrypt
+    </span>
+  </div>
+
+</div>
+
+<script>
+// ── Step indicator ────────────────────────────────────────────────
+function setStep(n) {
+  ['dot1','dot2','dot3'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className = 'step-dot' +
+      (i+1 < n ? ' done' : i+1 === n ? ' active' : '');
+  });
+}
+
+// ── Password strength ─────────────────────────────────────────────
+document.getElementById('password').addEventListener('input', function(){
+  const val  = this.value;
+  const wrap = document.getElementById('strength-wrap');
+  const fill = document.getElementById('strength-fill');
+  const lbl  = document.getElementById('strength-label');
+
+  if(val.length === 0){ wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+
+  let score = 0;
+  if(val.length >= 8)  score++;
+  if(val.length >= 12) score++;
+  if(/[A-Z]/.test(val)) score++;
+  if(/[0-9]/.test(val)) score++;
+  if(/[^A-Za-z0-9]/.test(val)) score++;
+
+  const levels = [
+    { w:'20%', bg:'var(--red)',    txt:'Too weak'  },
+    { w:'40%', bg:'var(--red)',    txt:'Weak'      },
+    { w:'60%', bg:'#fb923c',       txt:'Fair'      },
+    { w:'80%', bg:'#fbbf24',       txt:'Good'      },
+    { w:'100%',bg:'var(--green)',  txt:'Strong'    },
+  ];
+  const lvl = levels[Math.min(score, levels.length-1)];
+  fill.style.width      = lvl.w;
+  fill.style.background = lvl.bg;
+  lbl.textContent       = lvl.txt;
+  lbl.style.color       = lvl.bg;
+});
+
+// Track field completion for step indicator
+document.getElementById('username').addEventListener('input', function(){
+  if(this.value.length > 0) setStep(2);
+  else setStep(1);
+});
+document.getElementById('confirm').addEventListener('input', function(){
+  if(this.value.length > 0) setStep(3);
+  else setStep(2);
+});
+
+// ── Form submit ───────────────────────────────────────────────────
+document.getElementById('setup-form').addEventListener('submit', async function(e){
+  e.preventDefault();
+
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const confirm  = document.getElementById('confirm').value;
+  const btn      = document.getElementById('btn-submit');
+  const spinner  = document.getElementById('spinner');
+  const btnText  = document.getElementById('btn-text');
+  const errBanner= document.getElementById('error-banner');
+  const errText  = document.getElementById('error-text');
+
+  // Client-side validation
+  errBanner.classList.remove('show');
+
+  if(!username){
+    showError('Please enter a username.');
+    document.getElementById('username').focus();
+    return;
+  }
+  if(password.length < 8){
+    showError('Password must be at least 8 characters.');
+    document.getElementById('password').focus();
+    return;
+  }
+  if(password !== confirm){
+    showError('Passwords do not match.');
+    document.getElementById('confirm').classList.add('error');
+    document.getElementById('confirm').focus();
+    return;
+  }
+
+  // Submit
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  btnText.textContent   = 'Creating account...';
+
+  try {
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+
+    if(!res.ok || data.error){
+      showError(data.error || 'Setup failed. Please try again.');
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent   = 'Create account';
+      return;
+    }
+
+    // Success
+    document.getElementById('form-wrap').style.display  = 'none';
+    document.getElementById('success-state').style.display = 'block';
+    setTimeout(() => { window.location.href = '/login'; }, 2000);
+
+  } catch(err) {
+    showError('Could not connect to the server. Is SME-Shield running?');
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent   = 'Create account';
+  }
+});
+
+function showError(msg){
+  const banner = document.getElementById('error-banner');
+  document.getElementById('error-text').textContent = msg;
+  banner.classList.add('show');
+}
+</script>
+</body>
+</html>
