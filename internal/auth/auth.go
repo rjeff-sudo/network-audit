@@ -176,9 +176,9 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 		path := r.URL.Path
 
 		// Always public — setup, login, logout, landing, static assets
-		if path == "/setup" || path == "/login" ||
-			path == "/logout" || path == "/landing.html" ||
-			isPublicAsset(path) {
+		if path == "/setup" || path == "/api/setup" ||
+			path == "/login" || path == "/logout" ||
+			path == "/landing.html" || isPublicAsset(path) {
 			next.ServeHTTP(w, r)
 			return
 		}

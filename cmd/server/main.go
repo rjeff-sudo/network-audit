@@ -20,60 +20,82 @@ import (
 	"github.com/rjeff-sudo/sme-shield/internal/handlers"
 	"github.com/rjeff-sudo/sme-shield/internal/hub"
 	"github.com/rjeff-sudo/sme-shield/internal/models"
+	"github.com/rjeff-sudo/sme-shield/internal/scheduler"
 	platformDB "github.com/rjeff-sudo/sme-shield/platform/db"
 	"github.com/rjeff-sudo/sme-shield/platform/nvd"
 )
 
 func main() {
+	// ── 1. Config ─────────────────────────────────────────────────────────────
 	cfg, err := loadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("[main] load config: %v", err)
 	}
 	log.Printf("[main] config loaded — port %d, db %s", cfg.Server.Port, cfg.Server.DBPath)
 
+	// ── 2. Database ───────────────────────────────────────────────────────────
 	db, err := platformDB.Open(cfg.Server.DBPath)
 	if err != nil {
 		log.Fatalf("[main] open database: %v", err)
 	}
 	defer db.Close()
 
+	// ── 3. Shared dependencies ────────────────────────────────────────────────
 	wsHub   := hub.New()
 	nvdCli  := nvd.NewClient(cfg, db)
 	engine  := audit.NewEngine(cfg, db, nvdCli)
 	authSvc := auth.New(cfg.Auth, db)
+	sched   := scheduler.New(db, engine, wsHub)
 
+	// ── 4. Handlers ───────────────────────────────────────────────────────────
 	scanH      := handlers.NewScanHandler(engine, wsHub)
 	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
 	historyH   := handlers.NewHistoryHandler(db)
 	reportH    := handlers.NewReportHandler(db)
 	loginH     := handlers.NewLoginHandler(authSvc)
 	setupH     := handlers.NewSetupHandler(authSvc)
+	schedH     := handlers.NewScheduleHandler(sched)
 
+	// ── 5. Routes ─────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
 	// Public auth routes
-	mux.HandleFunc("/setup",      setupH.ServeHTTP)
-	mux.HandleFunc("/api/setup",  setupH.Create)
-	mux.HandleFunc("/login",      loginH.ServeHTTP)
-	mux.HandleFunc("/logout",     loginH.Logout)
+	mux.HandleFunc("/setup",     setupH.ServeHTTP)
+	mux.HandleFunc("/api/setup", setupH.Create)
+	mux.HandleFunc("/login",     loginH.ServeHTTP)
+	mux.HandleFunc("/logout",    loginH.Logout)
 
 	// WebSocket
 	mux.HandleFunc("/ws", wsHub.ServeWS)
 
 	// Protected API
-	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
-	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
-	mux.HandleFunc("/api/discover", discoveryH.Discover)
-	mux.HandleFunc("/api/history",  historyH.List)
-	mux.HandleFunc("/api/history/", routeHistory(historyH))
-	mux.HandleFunc("/api/report/",  reportH.Download)
+	mux.HandleFunc("/api/scan",        scanH.ServeHTTP)
+	mux.HandleFunc("/api/subnet",      discoveryH.Subnet)
+	mux.HandleFunc("/api/discover",    discoveryH.Discover)
+	mux.HandleFunc("/api/history",     historyH.List)
+	mux.HandleFunc("/api/history/",    routeHistory(historyH))
+	mux.HandleFunc("/api/report/",     reportH.Download)
+	mux.HandleFunc("/api/schedules",   schedH.List)
+	mux.HandleFunc("/api/schedules/",  func(w http.ResponseWriter, r *http.Request) {
+		// POST /api/schedules with no ID = create
+		if r.URL.Path == "/api/schedules/" || r.URL.Path == "/api/schedules" {
+			schedH.Create(w, r)
+			return
+		}
+		schedH.Route(w, r)
+	})
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
 
+	// ── 6. Middleware ─────────────────────────────────────────────────────────
 	handler := withLogging(withCORS(authSvc.Middleware(mux)))
+
+	// ── 7. Background tasks ───────────────────────────────────────────────────
+	sched.Start()
 	go runCachePruner(db, cfg)
 
+	// ── 8. Server ─────────────────────────────────────────────────────────────
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:         addr,
@@ -102,6 +124,8 @@ func main() {
 	}
 	log.Println("[main] stopped cleanly")
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 func routeHistory(h *handlers.HistoryHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
