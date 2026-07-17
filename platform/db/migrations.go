@@ -54,5 +54,20 @@ var migrations = []string{
  
 	// v6 — index on username for fast login lookups
 	`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+
+	// v7 — scheduled scans table
+	`CREATE TABLE IF NOT EXISTS schedules (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		ip           TEXT    NOT NULL,
+		label        TEXT    NOT NULL DEFAULT '',
+		interval_hrs INTEGER NOT NULL DEFAULT 24,
+		enabled      INTEGER NOT NULL DEFAULT 1,
+		last_run     TEXT,
+		next_run     TEXT    NOT NULL,
+		created_at   TEXT    NOT NULL
+	)`,
+ 
+	// v8 — index for fast next_run polling
+	`CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run)`,
  
 }
