@@ -375,7 +375,8 @@ function showView(name) {
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', active);
   });
-  if (name === 'history') loadHistory();
+  if (name === 'history')   loadHistory();
+  if (name === 'schedules') loadSchedules();
 }
 
 function resetAuditUI() {
@@ -428,6 +429,146 @@ function scoreLabelText(cls) {
 }
 
 function portCountStr(n) { return n === 0 ? 'no' : String(n); }
+
+/* ── Schedules ──────────────────────────────────────────────────── */
+async function loadSchedules() {
+  const grid  = document.getElementById('sched-grid');
+  const empty = document.getElementById('sched-empty');
+  grid.innerHTML = '';
+
+  try {
+    const res  = await fetch('/api/schedules');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    if (!data.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    data.forEach(sc => grid.appendChild(buildSchedCard(sc)));
+  } catch (err) {
+    toast('Could not load schedules: ' + err.message, 'error');
+  }
+}
+
+function buildSchedCard(sc) {
+  const card = document.createElement('div');
+  card.className = 'sched-card' + (sc.enabled ? '' : ' disabled');
+  card.id = 'sched-card-' + sc.id;
+
+  const lastRun = sc.last_run
+    ? new Date(sc.last_run).toLocaleString()
+    : 'Never';
+  const nextRun = new Date(sc.next_run).toLocaleString();
+  const interval = intervalLabel(sc.interval_hrs);
+
+  card.innerHTML = `
+    <div class="sched-head">
+      <div>
+        <p class="sched-ip">${escHtml(sc.ip)}</p>
+        <p class="sched-label">${escHtml(sc.label || 'No label')}</p>
+      </div>
+      <span class="sched-badge ${sc.enabled ? 'on' : 'off'}">
+        ${sc.enabled ? 'Active' : 'Paused'}
+      </span>
+    </div>
+    <div class="sched-meta">
+      <span><b>Interval</b>${escHtml(interval)}</span>
+      <span><b>Last run</b>${escHtml(lastRun)}</span>
+      <span><b>Next run</b>${escHtml(nextRun)}</span>
+    </div>
+    <div class="sched-actions">
+      <button onclick="runSchedNow(${sc.id})"
+        class="btn btn-mint" style="font-size:11px;padding:5px 14px">
+        Run now
+      </button>
+      <button onclick="toggleSched(${sc.id}, ${!sc.enabled})"
+        class="btn btn-ghost" style="font-size:11px;padding:5px 14px">
+        ${sc.enabled ? 'Pause' : 'Resume'}
+      </button>
+      <button onclick="deleteSched(${sc.id})"
+        class="btn btn-danger" style="font-size:11px;padding:5px 14px">
+        Delete
+      </button>
+    </div>`;
+  return card;
+}
+
+async function createSchedule() {
+  const ip       = document.getElementById('sched-ip').value.trim();
+  const label    = document.getElementById('sched-label').value.trim();
+  const interval = parseInt(document.getElementById('sched-interval').value);
+
+  if (!ip)            { toast('Enter an IP address', 'error'); return; }
+  if (!isValidIP(ip)) { toast('Enter a valid IPv4 address', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/schedules', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ ip, label, interval_hrs: interval }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('sched-ip').value    = '';
+    document.getElementById('sched-label').value = '';
+    toast('Schedule created — first scan in ' + intervalLabel(interval), 'success');
+    loadSchedules();
+  } catch (err) {
+    toast('Could not create schedule: ' + err.message, 'error');
+  }
+}
+
+async function toggleSched(id, enable) {
+  try {
+    const res  = await fetch(`/api/schedules/${id}/toggle`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ enabled: enable }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast(enable ? 'Schedule resumed' : 'Schedule paused', 'success');
+    loadSchedules();
+  } catch (err) {
+    toast('Could not update schedule: ' + err.message, 'error');
+  }
+}
+
+async function deleteSched(id) {
+  if (!confirm('Delete this schedule?')) return;
+  try {
+    const res  = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('Schedule deleted', 'success');
+    loadSchedules();
+  } catch (err) {
+    toast('Could not delete schedule: ' + err.message, 'error');
+  }
+}
+
+async function runSchedNow(id) {
+  try {
+    const res  = await fetch(`/api/schedules/${id}/run`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('Scan started — watch the live feed on the Scan tab', 'info');
+  } catch (err) {
+    toast('Could not start scan: ' + err.message, 'error');
+  }
+}
+
+function intervalLabel(hrs) {
+  if (hrs === 6)   return 'Every 6 hours';
+  if (hrs === 12)  return 'Every 12 hours';
+  if (hrs === 24)  return 'Every 24 hours';
+  if (hrs === 48)  return 'Every 2 days';
+  if (hrs === 168) return 'Every week';
+  return `Every ${hrs} hours`;
+}
 
 /* ── Boot ───────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {

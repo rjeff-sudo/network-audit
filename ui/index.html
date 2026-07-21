@@ -360,6 +360,88 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .toast-success{border-color:rgba(162,246,245,0.3);color:var(--mint)}
 .toast-error  {border-color:rgba(248,113,113,0.3);color:var(--red)}
 .toast-info   {border-color:rgba(133,141,249,0.3);color:var(--lavender)}
+/* ── Schedule cards ────────────────────────────────────────────── */
+.sched-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:12px;margin-top:4px;
+}
+.sched-card{
+  background:var(--plum);
+  border:1px solid rgba(227,204,192,0.12);
+  border-radius:8px;padding:20px 22px;
+  transition:border-color 0.2s;
+}
+.sched-card:hover{border-color:rgba(227,204,192,0.25)}
+.sched-card.disabled{opacity:0.5}
+.sched-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.sched-ip{font-family:var(--mono);font-size:14px;color:var(--mint);font-weight:300}
+.sched-label{font-size:11px;color:var(--stone);margin-top:2px}
+.sched-badge{
+  font-size:10px;font-weight:500;letter-spacing:0.08em;
+  text-transform:uppercase;padding:3px 10px;border-radius:9999px;
+  flex-shrink:0;
+}
+.sched-badge.on {background:rgba(162,246,245,0.12);color:var(--mint)}
+.sched-badge.off{background:rgba(255,255,255,0.06);color:var(--stone)}
+.sched-meta{
+  display:flex;flex-direction:column;gap:4px;
+  font-size:12px;color:var(--stone);margin-bottom:16px;
+}
+.sched-meta span{display:flex;align-items:center;gap:6px}
+.sched-meta b{color:var(--cream);font-weight:500}
+.sched-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Toggle switch */
+.toggle{
+  position:relative;display:inline-block;
+  width:36px;height:20px;flex-shrink:0;
+}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;cursor:pointer;
+  background:rgba(255,255,255,0.1);border-radius:99px;
+  transition:background 0.2s;
+}
+.toggle-slider::before{
+  content:'';position:absolute;
+  width:14px;height:14px;border-radius:50%;
+  left:3px;top:3px;background:var(--stone);
+  transition:transform 0.2s,background 0.2s;
+}
+.toggle input:checked + .toggle-slider{background:rgba(162,246,245,0.25)}
+.toggle input:checked + .toggle-slider::before{
+  transform:translateX(16px);background:var(--mint);
+}
+
+/* Add schedule form */
+.sched-form{
+  background:rgba(0,0,0,0.2);
+  border:1px solid rgba(227,204,192,0.1);
+  border-radius:8px;padding:20px 22px;
+  margin-bottom:20px;
+}
+.sched-form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr auto auto;
+  gap:10px;align-items:end;
+}
+@media(max-width:700px){.sched-form-grid{grid-template-columns:1fr 1fr}}
+.form-field label{
+  display:block;font-size:10px;font-weight:500;
+  letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--stone);margin-bottom:6px;
+}
+.form-field select{
+  font-family:var(--font);font-size:13px;
+  color:var(--cream);background:var(--cocoa);
+  border:1px solid rgba(227,204,192,0.18);
+  border-radius:4px;padding:9px 10px;
+  outline:none;width:100%;cursor:pointer;
+  transition:border-color 0.15s;
+  appearance:none;
+}
+.form-field select:focus{border-color:var(--mint)}
 </style>
 </head>
 <body>
@@ -389,6 +471,10 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <button onclick="showView('history')" data-view="history"
           class="nav-tab" role="tab" aria-selected="false">
           History
+        </button>
+        <button onclick="showView('schedules')" data-view="schedules"
+          class="nav-tab" role="tab" aria-selected="false">
+          Schedules
         </button>
       </div>
 
@@ -609,6 +695,72 @@ tr:hover td{background:rgba(255,255,255,0.02)}
           </tbody>
         </table>
       </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Schedules View ─────────────────────────────────────────────────── -->
+<div id="view-schedules" class="view hidden" role="main" aria-label="Scheduled scans">
+  <div class="wrap" style="padding-top:28px;padding-bottom:48px">
+
+    <div class="section-head">
+      <div>
+        <h1 class="section-title">Scheduled Scans</h1>
+        <p class="section-sub">Automatically audit devices on a recurring interval</p>
+      </div>
+      <button onclick="loadSchedules()" class="btn btn-ghost">Refresh</button>
+    </div>
+
+    <!-- Add schedule form -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-head">
+        <div>
+          <div class="step-pill">
+            <span class="step-pill-num">+</span>
+            <span class="step-pill-text">New Schedule</span>
+          </div>
+          <p class="card-title">Add a recurring audit</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="sched-form-grid">
+          <div class="form-field">
+            <label for="sched-ip">Target IP</label>
+            <input id="sched-ip" type="text" placeholder="192.168.1.1"
+              class="input" aria-label="IP address to schedule"/>
+          </div>
+          <div class="form-field">
+            <label for="sched-label">Label (optional)</label>
+            <input id="sched-label" type="text" placeholder="e.g. Main router"
+              class="input" aria-label="Label for this schedule"/>
+          </div>
+          <div class="form-field">
+            <label for="sched-interval">Repeat every</label>
+            <select id="sched-interval" aria-label="Scan interval">
+              <option value="6">Every 6 hours</option>
+              <option value="12">Every 12 hours</option>
+              <option value="24" selected>Every 24 hours</option>
+              <option value="48">Every 2 days</option>
+              <option value="168">Every week</option>
+            </select>
+          </div>
+          <div class="form-field" style="display:flex;align-items:flex-end">
+            <button onclick="createSchedule()" class="btn btn-mint" style="white-space:nowrap">
+              Add schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedule list -->
+    <div id="sched-list-wrap">
+      <div id="sched-empty" class="hidden"
+        style="text-align:center;padding:48px 0;color:var(--stone);font-size:14px">
+        No schedules yet — add one above to start automating your audits.
+      </div>
+      <div id="sched-grid" class="sched-grid"></div>
     </div>
 
   </div>
