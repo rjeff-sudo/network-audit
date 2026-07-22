@@ -75,15 +75,19 @@ func main() {
 	mux.HandleFunc("/api/history",     historyH.List)
 	mux.HandleFunc("/api/history/",    routeHistory(historyH))
 	mux.HandleFunc("/api/report/",     reportH.Download)
-	mux.HandleFunc("/api/schedules",   schedH.List)
-	mux.HandleFunc("/api/schedules/",  func(w http.ResponseWriter, r *http.Request) {
-		// POST /api/schedules with no ID = create
-		if r.URL.Path == "/api/schedules/" || r.URL.Path == "/api/schedules" {
-			schedH.Create(w, r)
-			return
-		}
-		schedH.Route(w, r)
-	})
+	mux.HandleFunc("/api/schedules", func(w http.ResponseWriter, r *http.Request) {
+        switch r.Method {
+        case http.MethodGet:
+              schedH.List(w, r)
+        case http.MethodPost:
+             schedH.Create(w, r)
+        default:
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusMethodNotAllowed)
+            w.Write([]byte(`{"error":"method not allowed"}`))
+        }
+    })
+    mux.HandleFunc("/api/schedules/", schedH.Route)
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
