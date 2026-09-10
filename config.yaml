@@ -2,6 +2,7 @@ server:
   port: 8080
   ui_dir: "./ui"
   db_path: "./data/audit.db"   # stored in the Docker volume (or ./data/ locally)
+  cors_origin: ""               # "" = same-origin only, "*" = allow all, or e.g. "http://localhost:8080"
 
 scanner:
   worker_count: 100
