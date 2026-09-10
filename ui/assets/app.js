@@ -29,6 +29,7 @@ function handleWSMessage(msg) {
     case 'SCAN_COMPLETE': onScanComplete(msg.payload.result); break;
     case 'SCAN_ERROR':    onScanError(msg.payload.message);   break;
     case 'DEVICES_FOUND': onDevicesFound(msg.payload);        break;
+    case 'SCAN_BUSY':     onScanBusy(msg.payload.message);    break;
   }
 }
 
@@ -169,6 +170,13 @@ function onScanComplete(result) {
   const ok = result.risk_score >= 70;
   toast('Score: ' + result.risk_score + '/100 — ' + result.summary.label,
     ok ? 'success' : 'error');
+}
+
+function onScanBusy(msg) {
+  state.scanning = false;
+  const btn = document.getElementById('btn-audit');
+  btn.disabled = false; btn.textContent = 'Start audit';
+  toast(msg || 'Another audit is already running', 'error');
 }
 
 function onScanError(msg) {
