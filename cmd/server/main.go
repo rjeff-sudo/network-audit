@@ -41,7 +41,7 @@ func main() {
 	defer db.Close()
 
 	// ── 3. Shared dependencies ────────────────────────────────────────────────
-	wsHub   := hub.New()
+	wsHub   := hub.New(cfg.Server.CORSOrigin)
 	nvdCli  := nvd.NewClient(cfg, db)
 	engine  := audit.NewEngine(cfg, db, nvdCli)
 	authSvc := auth.New(cfg.Auth, db)
@@ -69,12 +69,13 @@ func main() {
 	mux.HandleFunc("/ws", wsHub.ServeWS)
 
 	// Protected API
-	mux.HandleFunc("/api/scan",        scanH.ServeHTTP)
-	mux.HandleFunc("/api/subnet",      discoveryH.Subnet)
-	mux.HandleFunc("/api/discover",    discoveryH.Discover)
-	mux.HandleFunc("/api/history",     historyH.List)
-	mux.HandleFunc("/api/history/",    routeHistory(historyH))
-	mux.HandleFunc("/api/report/",     reportH.Download)
+	mux.HandleFunc("/api/scan",         scanH.ServeHTTP)
+	mux.HandleFunc("/api/scan/cancel",  scanH.Cancel)
+	mux.HandleFunc("/api/subnet",       discoveryH.Subnet)
+	mux.HandleFunc("/api/discover",     discoveryH.Discover)
+	mux.HandleFunc("/api/history",      historyH.List)
+	mux.HandleFunc("/api/history/",     routeHistory(historyH))
+	mux.HandleFunc("/api/report/",      reportH.Download)
 	mux.HandleFunc("/api/schedules", func(w http.ResponseWriter, r *http.Request) {
         switch r.Method {
         case http.MethodGet:
@@ -93,7 +94,7 @@ func main() {
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
 
 	// ── 6. Middleware ─────────────────────────────────────────────────────────
-	handler := withLogging(withCORS(authSvc.Middleware(mux)))
+	handler := withLogging(withCORS(cfg.Server.CORSOrigin)(authSvc.Middleware(mux)))
 
 	// ── 7. Background tasks ───────────────────────────────────────────────────
 	sched.Start()
@@ -105,7 +106,7 @@ func main() {
 		Addr:         addr,
 		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -194,17 +195,25 @@ func withLogging(next http.Handler) http.Handler {
 	})
 }
 
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func withCORS(origin string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Default: same-origin only (empty string = no ACAO header, browser blocks cross-origin)
+			if origin == "*" {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func runCachePruner(db *sql.DB, cfg models.Config) {

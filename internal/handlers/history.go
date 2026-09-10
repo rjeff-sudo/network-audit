@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,7 +28,8 @@ type scanRow struct {
 	CVECount  int       `json:"cve_count"`
 }
 
-// List handles GET /api/history
+// List handles GET /api/history?limit=20&offset=0
+// Returns a paginated list of scan records.
 func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -42,6 +42,17 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
+
+	offset := 0
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	// Get total count for pagination metadata.
+	var total int
+	h.db.QueryRow(`SELECT COUNT(*) FROM scans`).Scan(&total)
 
 	rows, err := h.db.Query(`
 		SELECT
@@ -56,7 +67,7 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN scan_results r ON r.scan_id = s.id
 		GROUP BY s.id
 		ORDER BY s.scan_time DESC
-		LIMIT ?`, limit)
+		LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		jsonError(w, "database error", http.StatusInternalServerError)
 		return
@@ -83,7 +94,13 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		scans = []scanRow{}
 	}
 
-	jsonOK(w, scans)
+	jsonOK(w, map[string]interface{}{
+		"scans":      scans,
+		"total":      total,
+		"limit":      limit,
+		"offset":     offset,
+		"has_more":   offset+len(scans) < total,
+	})
 }
 
 // Get handles GET /api/history/{id}
@@ -183,10 +200,4 @@ func (h *HistoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "deleted"})
 }
 
-// portCountStr is a small helper used by the discovery handler.
-func portCountStr(n int) string {
-	if n == 0 {
-		return "no"
-	}
-	return fmt.Sprintf("%d", n)
-}
+

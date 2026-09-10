@@ -7,100 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/assets/theme.css"/>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --cocoa:    #200f0a;
-  --plum:     #2b2538;
-  --auberg:   #4d3f3b;
-  --cream:    #fcfaf9;
-  --sand:     #e3ccc0;
-  --stone:    #a69f9d;
-  --mint:     #a2f6f5;
-  --iris:     #858df9;
-  --lavender: #b6bbfb;
-  --red:      #f87171;
-  --font:     'Inter',ui-sans-serif,system-ui,sans-serif;
-  --mono:     'JetBrains Mono',ui-monospace,monospace;
-  --ease:     cubic-bezier(0.16,1,0.3,1);
-}
-html{scroll-behavior:smooth}
-body{
-  background:var(--cocoa);color:var(--cream);
-  font-family:var(--font);font-size:16px;
-  line-height:1.5;min-height:100vh;overflow-x:hidden;
-}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-:focus-visible{outline:2px solid var(--mint);outline-offset:3px;border-radius:4px}
-.wrap{max-width:1200px;margin:0 auto;padding:0 48px}
-@media(max-width:600px){.wrap{padding:0 24px}}
-
-/* ── Shared animations ──────────────────────────────────────────── */
-@keyframes fadeDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeUp  {from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)}}
-@keyframes wordClip{to{opacity:1;transform:translateY(0)}}
-@keyframes mintGlow{
-  0%,100%{box-shadow:0 0 8px rgba(162,246,245,0.5)}
-  50%    {box-shadow:0 0 18px rgba(162,246,245,0.85)}
-}
-@keyframes radarSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes wsPulse{0%,100%{opacity:1}50%{opacity:0.3}}
-
-/* ── Scroll reveal ──────────────────────────────────────────────── */
-.reveal{
-  opacity:0;transform:translateY(28px);
-  transition:opacity 0.7s var(--ease),transform 0.7s var(--ease);
-}
-.reveal.in{opacity:1;transform:translateY(0)}
-.rd1{transition-delay:0.05s}.rd2{transition-delay:0.13s}
-.rd3{transition-delay:0.21s}.rd4{transition-delay:0.29s}
-
-/* ── Nav ────────────────────────────────────────────────────────── */
-nav{
-  position:sticky;top:0;z-index:100;
-  background:var(--cocoa);
-  border-bottom:1px solid rgba(227,204,192,0.15);
-  opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards;
-}
-.nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px}
-.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--cream)}
-.nav-mark{
-  width:28px;height:28px;border-radius:6px;
-  border:1px solid rgba(227,204,192,0.3);
-  display:flex;align-items:center;justify-content:center;
-  transition:border-color 0.2s,background 0.2s;
-}
-.nav-logo:hover .nav-mark{border-color:var(--mint);background:rgba(162,246,245,0.08)}
-.nav-name{font-size:14px;font-weight:500;letter-spacing:0.04em}
-.nav-links{display:flex;gap:32px}
-.nav-links a{
-  font-size:14px;font-weight:500;color:var(--stone);
-  text-decoration:none;transition:color 0.2s;
-}
-.nav-links a:hover{color:var(--cream)}
-@media(max-width:680px){.nav-links{display:none}}
+/* ── Landing page: nav fade-in animation (overrides theme.css default) */
+nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .nav-ctas{display:flex;align-items:center;gap:10px}
-
-/* ── Buttons ────────────────────────────────────────────────────── */
-.btn-mint{
-  font-family:var(--font);font-size:14px;font-weight:500;
-  color:var(--cocoa);background:var(--mint);
-  border:none;border-radius:9999px;
-  padding:11px 22px;cursor:pointer;
-  text-decoration:none;display:inline-flex;align-items:center;gap:7px;
-  transition:opacity 0.15s,transform 0.1s;
-}
-.btn-mint:hover{opacity:0.88;transform:translateY(-1px)}
-.btn-mint:active{transform:translateY(0)}
-.btn-iris{
-  font-family:var(--font);font-size:14px;font-weight:500;
-  color:var(--iris);background:transparent;
-  border:1px solid var(--iris);border-radius:9999px;
-  padding:11px 22px;cursor:pointer;
-  text-decoration:none;display:inline-flex;align-items:center;gap:7px;
-  transition:background 0.15s,transform 0.1s;
-}
-.btn-iris:hover{background:rgba(133,141,249,0.08);transform:translateY(-1px)}
 
 /* ── Hero ────────────────────────────────────────────────────────── */
 .hero{padding:100px 0 80px;border-bottom:1px solid rgba(227,204,192,0.12)}

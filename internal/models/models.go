@@ -9,9 +9,10 @@ import "time"
 // Config mirrors the structure of config.yaml.
 type Config struct {
 	Server struct {
-		Port   int    `yaml:"port"`
-		UIDir  string `yaml:"ui_dir"`
-		DBPath string `yaml:"db_path"`
+		Port       int      `yaml:"port"`
+		UIDir      string   `yaml:"ui_dir"`
+		DBPath     string   `yaml:"db_path"`
+		CORSOrigin string   `yaml:"cors_origin"` // "*" = allow all, "" = same-origin only, or a specific origin
 	} `yaml:"server"`
 
 	Scanner struct {
@@ -146,6 +147,7 @@ const (
 	WSTypeComplete  = "SCAN_COMPLETE" // audit finished
 	WSTypeError     = "SCAN_ERROR"    // audit failed
 	WSTypeDevices   = "DEVICES_FOUND" // discovery results
+	WSTypeBusy      = "SCAN_BUSY"     // another scan is already running
 )
 
 // WSPayloadProgress is sent periodically while a scan runs.

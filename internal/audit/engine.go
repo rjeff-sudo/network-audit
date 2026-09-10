@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -29,6 +30,7 @@ func NewEngine(cfg models.Config, db *sql.DB, nvdCli *nvd.Client) *Engine {
 }
 
 func (e *Engine) Run(
+	ctx context.Context,
 	ip string,
 	onProgress ProgressFunc,
 	onPortFound PortFoundFunc,
@@ -68,6 +70,11 @@ func (e *Engine) Run(
 	var allCVEs []models.CVE
 
 	for i, portNum := range openPorts {
+		// Check for cancellation before each port analysis.
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+
 		pct := 10 + int(float64(i)/float64(total)*80)
 		onProgress(pct, fmt.Sprintf("Analysing port %d (%d of %d)", portNum, i+1, total))
 

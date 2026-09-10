@@ -19,7 +19,6 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 4096,
-	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 type Client struct {
@@ -29,6 +28,25 @@ type Client struct {
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
+	// Validate WebSocket origin: only allow connections from the server's own origin.
+	// If an allowedOrigin is configured, match against it; otherwise match against the Host header.
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		allowed := h.allowedOrigin
+		if allowed == "" {
+			// Same-origin: Origin must match the Host header.
+			allowed = "http://" + r.Host
+			if r.TLS != nil {
+				allowed = "https://" + r.Host
+			}
+		}
+		if allowed != "*" && origin != allowed {
+			log.Printf("[ws] rejected connection from origin %s (expected %s)", origin, allowed)
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[ws] upgrade error: %v", err)
