@@ -47,7 +47,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws",           wsHub.ServeWS)
-	mux.HandleFunc("/api/scan",     scanH.ServeHTTP)
+	mux.HandleFunc("/api/scan",         scanH.ServeHTTP)
+	mux.HandleFunc("/api/scan/cancel", scanH.Cancel)
 	mux.HandleFunc("/api/subnet",   discoveryH.Subnet)
 	mux.HandleFunc("/api/discover", discoveryH.Discover)
 	mux.HandleFunc("/api/history",  historyH.List)

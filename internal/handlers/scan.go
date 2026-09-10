@@ -27,6 +27,23 @@ type scanRequest struct {
 	IP string `json:"ip"`
 }
 
+// Cancel handles POST /api/scan/cancel
+// It aborts the currently running audit if one is in progress.
+func (h *ScanHandler) Cancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cancelled := h.hub.CancelScan()
+	if !cancelled {
+		jsonError(w, "no scan is currently running", http.StatusConflict)
+		return
+	}
+
+	jsonOK(w, map[string]string{"status": "cancelled", "message": "Scan abort requested"})
+}
+
 // ServeHTTP handles POST /api/scan
 // It launches the audit in a goroutine so the HTTP response returns immediately
 // with a 202 Accepted. All progress is streamed via WebSocket.
@@ -49,7 +66,8 @@ func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Try to acquire the scan lock — reject if another scan is running.
-	if !h.hub.StartScan() {
+	scanCtx, ok := h.hub.StartScan()
+	if !ok {
 		h.hub.SendBusy()
 		jsonError(w, "another audit is already running", http.StatusConflict)
 		return
@@ -76,9 +94,13 @@ func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.hub.SendPortFound(ip, port)
 		}
 
-		result, err := h.engine.Run(ip, onProgress, onPortFound)
+		result, err := h.engine.Run(scanCtx, ip, onProgress, onPortFound)
 		if err != nil {
-			h.hub.SendError("Audit failed: " + err.Error())
+			if scanCtx.Err() != nil {
+				h.hub.SendProgress(0, "Scan cancelled")
+			} else {
+				h.hub.SendError("Audit failed: " + err.Error())
+			}
 			return
 		}
 

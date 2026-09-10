@@ -125,6 +125,7 @@ async function startAudit() {
   btn.disabled = true; btn.textContent = 'Scanning...';
 
   show('progress-wrap');
+  show('btn-cancel');
   setProgress(2, 'Starting audit on ' + ip);
 
   try {
@@ -166,16 +167,29 @@ function onScanComplete(result) {
   setProgress(100, 'Audit complete');
   const btn = document.getElementById('btn-audit');
   btn.disabled = false; btn.textContent = 'Start audit';
+  hide('btn-cancel');
   renderResults(result);
   const ok = result.risk_score >= 70;
   toast('Score: ' + result.risk_score + '/100 — ' + result.summary.label,
     ok ? 'success' : 'error');
 }
 
+async function cancelAudit() {
+  try {
+    const res  = await fetch('/api/scan/cancel', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('Scan cancellation requested', 'info');
+  } catch (err) {
+    toast('Cancel failed: ' + err.message, 'error');
+  }
+}
+
 function onScanBusy(msg) {
   state.scanning = false;
   const btn = document.getElementById('btn-audit');
   btn.disabled = false; btn.textContent = 'Start audit';
+  hide('btn-cancel');
   toast(msg || 'Another audit is already running', 'error');
 }
 
@@ -183,6 +197,7 @@ function onScanError(msg) {
   state.scanning = false;
   const btn = document.getElementById('btn-audit');
   btn.disabled = false; btn.textContent = 'Start audit';
+  hide('btn-cancel');
   setProgress(0, '');
   hide('progress-wrap');
   toast('Error: ' + msg, 'error');
@@ -276,20 +291,26 @@ function renderPortTable(ports) {
 }
 
 /* ── History ────────────────────────────────────────────────────── */
+const historyState = { offset: 0, limit: 20, hasMore: false };
+
 async function loadHistory() {
+  historyState.offset = 0;
   const tbody = document.getElementById('history-table-body');
   tbody.innerHTML =
     `<tr><td colspan="8"
       style="text-align:center;color:var(--stone);padding:40px 0">
       Loading...
     </td></tr>`;
+  hide('history-load-more');
 
   try {
-    const res  = await fetch('/api/history?limit=50');
+    const res  = await fetch(`/api/history?limit=${historyState.limit}&offset=0`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    if (!data.length) {
+    tbody.innerHTML = '';
+
+    if (!data.scans || !data.scans.length) {
       tbody.innerHTML =
         `<tr><td colspan="8"
           style="text-align:center;color:var(--stone);padding:48px 0">
@@ -298,47 +319,11 @@ async function loadHistory() {
       return;
     }
 
-    tbody.innerHTML = '';
-    data.forEach(row => {
-      const tr   = document.createElement('tr');
-      const cls  = scoreRingClass(row.risk_score).replace('ring-','');
-      const date = new Date(row.scan_time).toLocaleString();
-      const scoreColor = {
-        secure:'var(--green)', moderate:'var(--amber)',
-        high:'var(--orange)',  critical:'var(--red)'
-      }[cls] || 'var(--stone)';
+    historyState.offset = data.scans.length;
+    historyState.hasMore = data.has_more;
+    data.scans.forEach(row => appendHistoryRow(row));
 
-      tr.innerHTML =
-        `<td style="font-family:var(--mono);font-size:11px;color:var(--stone)">
-           SCN-${String(row.id).padStart(4,'0')}
-         </td>
-         <td style="font-family:var(--mono);color:var(--mint);font-size:12px">
-           ${escHtml(row.ip)}
-         </td>
-         <td style="font-size:12px;color:var(--stone)">${escHtml(row.hostname || '—')}</td>
-         <td>
-           <span style="font-size:20px;font-weight:300;color:${scoreColor}">${row.risk_score}</span>
-           <span style="font-size:11px;color:var(--stone);margin-left:4px">${scoreLabelText(cls)}</span>
-         </td>
-         <td style="color:var(--cream)">${row.port_count}</td>
-         <td style="color:${row.cve_count > 0 ? 'var(--red)' : 'var(--green)'};font-weight:500">
-           ${row.cve_count}
-         </td>
-         <td style="font-size:11px;color:var(--stone);white-space:nowrap">${date}</td>
-         <td>
-           <div style="display:flex;gap:6px">
-             <button onclick="reAudit('${escHtml(row.ip)}')"
-               class="btn btn-iris" style="font-size:11px;padding:5px 12px">
-               Re-audit
-             </button>
-             <button onclick="deleteHistory(${row.id},this)"
-               class="btn btn-danger" style="font-size:11px;padding:5px 12px">
-               Delete
-             </button>
-           </div>
-         </td>`;
-      tbody.appendChild(tr);
-    });
+    if (data.has_more) show('history-load-more');
   } catch (err) {
     tbody.innerHTML =
       `<tr><td colspan="8"
@@ -346,6 +331,73 @@ async function loadHistory() {
         Error: ${escHtml(err.message)}
       </td></tr>`;
   }
+}
+
+async function loadMoreHistory() {
+  const btn = document.querySelector('#history-load-more button');
+  btn.disabled = true; btn.textContent = 'Loading...';
+
+  try {
+    const res  = await fetch(`/api/history?limit=${historyState.limit}&offset=${historyState.offset}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    historyState.offset += data.scans.length;
+    historyState.hasMore = data.has_more;
+    data.scans.forEach(row => appendHistoryRow(row));
+
+    if (data.has_more) {
+      show('history-load-more');
+    } else {
+      hide('history-load-more');
+    }
+  } catch (err) {
+    toast('Load more failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Load more';
+  }
+}
+
+function appendHistoryRow(row) {
+  const tbody = document.getElementById('history-table-body');
+  const tr   = document.createElement('tr');
+  const cls  = scoreRingClass(row.risk_score).replace('ring-','');
+  const date = new Date(row.scan_time).toLocaleString();
+  const scoreColor = {
+    secure:'var(--green)', moderate:'var(--amber)',
+    high:'var(--orange)',  critical:'var(--red)'
+  }[cls] || 'var(--stone)';
+
+  tr.innerHTML =
+    `<td style="font-family:var(--mono);font-size:11px;color:var(--stone)">
+       SCN-${String(row.id).padStart(4,'0')}
+     </td>
+     <td style="font-family:var(--mono);color:var(--mint);font-size:12px">
+       ${escHtml(row.ip)}
+     </td>
+     <td style="font-size:12px;color:var(--stone)">${escHtml(row.hostname || '—')}</td>
+     <td>
+       <span style="font-size:20px;font-weight:300;color:${scoreColor}">${row.risk_score}</span>
+       <span style="font-size:11px;color:var(--stone);margin-left:4px">${scoreLabelText(cls)}</span>
+     </td>
+     <td style="color:var(--cream)">${row.port_count}</td>
+     <td style="color:${row.cve_count > 0 ? 'var(--red)' : 'var(--green)'};font-weight:500">
+       ${row.cve_count}
+     </td>
+     <td style="font-size:11px;color:var(--stone);white-space:nowrap">${date}</td>
+     <td>
+       <div style="display:flex;gap:6px">
+         <button onclick="reAudit('${escHtml(row.ip)}')"
+           class="btn btn-iris" style="font-size:11px;padding:5px 12px">
+           Re-audit
+         </button>
+         <button onclick="deleteHistory(${row.id},this)"
+           class="btn btn-danger" style="font-size:11px;padding:5px 12px">
+           Delete
+         </button>
+       </div>
+     </td>`;
+  tbody.appendChild(tr);
 }
 
 async function deleteHistory(id, btn) {
@@ -387,7 +439,7 @@ function showView(name) {
 }
 
 function resetAuditUI() {
-  hide('results-wrap'); hide('live-feed-wrap'); hide('btn-report');
+  hide('results-wrap'); hide('live-feed-wrap'); hide('btn-report'); hide('btn-cancel');
   document.getElementById('live-feed').innerHTML = '';
   setProgress(0, '');
 }

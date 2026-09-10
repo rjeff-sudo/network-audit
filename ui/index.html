@@ -385,6 +385,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
           <button id="btn-audit" onclick="startAudit()" class="btn btn-mint">
             Start audit
           </button>
+          <button id="btn-cancel" onclick="cancelAudit()" class="btn btn-danger hidden">
+            Cancel
+          </button>
         </div>
 
         <div id="progress-wrap" class="progress-wrap hidden" aria-live="polite">
@@ -517,6 +520,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
             </tr>
           </tbody>
         </table>
+      </div>
+      <div id="history-load-more" style="display:none;padding:16px 24px;text-align:center;border-top:1px solid rgba(227,204,192,0.1)">
+        <button onclick="loadMoreHistory()" class="btn btn-ghost">Load more</button>
       </div>
     </div>
 

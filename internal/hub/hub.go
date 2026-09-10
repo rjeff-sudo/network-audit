@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"sync"
@@ -14,8 +15,9 @@ type Hub struct {
 	allowedOrigin string // "*" = allow all, "" = same-origin, or a specific origin URL
 
 	// Scan concurrency guard — only one audit may run at a time.
-	scanMu   sync.Mutex
-	scanning bool
+	scanMu      sync.Mutex
+	scanning    bool
+	scanCancel  context.CancelFunc // non-nil while a scan is running
 }
 
 func New(allowedOrigin string) *Hub {
@@ -25,16 +27,18 @@ func New(allowedOrigin string) *Hub {
 	}
 }
 
-// StartScan tries to acquire the scan lock. Returns true if the scan can
-// proceed, false if another scan is already running.
-func (h *Hub) StartScan() bool {
+// StartScan tries to acquire the scan lock. Returns a cancellable context
+// and true if the scan can proceed, or (nil, false) if another scan is running.
+func (h *Hub) StartScan() (context.Context, bool) {
 	h.scanMu.Lock()
 	defer h.scanMu.Unlock()
 	if h.scanning {
-		return false
+		return nil, false
 	}
 	h.scanning = true
-	return true
+	ctx, cancel := context.WithCancel(context.Background())
+	h.scanCancel = cancel
+	return ctx, true
 }
 
 // FinishScan releases the scan lock so the next audit can proceed.
@@ -42,6 +46,18 @@ func (h *Hub) FinishScan() {
 	h.scanMu.Lock()
 	defer h.scanMu.Unlock()
 	h.scanning = false
+	h.scanCancel = nil
+}
+
+// CancelScan aborts the currently running scan, if any.
+func (h *Hub) CancelScan() bool {
+	h.scanMu.Lock()
+	defer h.scanMu.Unlock()
+	if !h.scanning || h.scanCancel == nil {
+		return false
+	}
+	h.scanCancel()
+	return true
 }
 
 // IsScanning reports whether an audit is currently in progress.
