@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/rjeff-sudo/sme-shield/internal/hub"
 	"github.com/rjeff-sudo/sme-shield/internal/models"
 	"github.com/rjeff-sudo/sme-shield/internal/network"
+	"github.com/rjeff-sudo/sme-shield/internal/util"
 )
 
 // DiscoveryHandler holds dependencies for the network discovery endpoints.
@@ -47,7 +49,11 @@ func (h *DiscoveryHandler) Discover(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Subnet string `json:"subnet"`
 	}
-	json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Printf("[discovery] decode error: %v", err)
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
 
 	cidr := body.Subnet
 	if cidr == "" {
@@ -86,6 +92,6 @@ func (h *DiscoveryHandler) Discover(w http.ResponseWriter, r *http.Request) {
 			Payload: devices,
 		})
 
-		h.hub.SendProgress(100, "Discovery complete — found "+portCountStr(len(devices))+" device(s)")
+		h.hub.SendProgress(100, "Discovery complete — found "+util.PortCountStr(len(devices))+" device(s)")
 	}()
 }

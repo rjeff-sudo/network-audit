@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -183,10 +182,4 @@ func (h *HistoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "deleted"})
 }
 
-// portCountStr is a small helper used by the discovery handler.
-func portCountStr(n int) string {
-	if n == 0 {
-		return "no"
-	}
-	return fmt.Sprintf("%d", n)
-}
+

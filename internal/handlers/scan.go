@@ -48,6 +48,13 @@ func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Try to acquire the scan lock — reject if another scan is running.
+	if !h.hub.StartScan() {
+		h.hub.SendBusy()
+		jsonError(w, "another audit is already running", http.StatusConflict)
+		return
+	}
+
 	// Acknowledge immediately — results stream over WebSocket.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -59,6 +66,8 @@ func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Run the audit in the background.
 	go func() {
+		defer h.hub.FinishScan()
+
 		onProgress := func(percent int, message string) {
 			h.hub.SendProgress(percent, message)
 		}
