@@ -22,6 +22,7 @@ import (
 	"github.com/rjeff-sudo/sme-shield/internal/models"
 	"github.com/rjeff-sudo/sme-shield/internal/scheduler"
 	platformDB "github.com/rjeff-sudo/sme-shield/platform/db"
+	"github.com/rjeff-sudo/sme-shield/platform/email"
 	"github.com/rjeff-sudo/sme-shield/platform/nvd"
 )
 
@@ -44,8 +45,10 @@ func main() {
 	wsHub   := hub.New(cfg.Server.CORSOrigin)
 	nvdCli  := nvd.NewClient(cfg, db)
 	engine  := audit.NewEngine(cfg, db, nvdCli)
-	authSvc := auth.New(cfg.Auth, db)
-	sched   := scheduler.New(db, engine, wsHub)
+	authSvc  := auth.New(cfg.Auth, db)
+	sched    := scheduler.New(db, engine, wsHub)
+	emailCli := email.NewClient(cfg.SMTP)
+	serverURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
 
 	// ── 4. Handlers ───────────────────────────────────────────────────────────
 	scanH      := handlers.NewScanHandler(engine, wsHub)
@@ -53,8 +56,10 @@ func main() {
 	historyH   := handlers.NewHistoryHandler(db)
 	reportH    := handlers.NewReportHandler(db)
 	loginH     := handlers.NewLoginHandler(authSvc)
-	setupH     := handlers.NewSetupHandler(authSvc)
+	setupH     := handlers.NewSetupHandler(authSvc, emailCli, serverURL)
+	verifyH    := handlers.NewVerifyHandler(authSvc)
 	schedH     := handlers.NewScheduleHandler(sched)
+	settingsH  := handlers.NewSettingsHandler(authSvc)
 
 	// ── 5. Routes ─────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -62,6 +67,7 @@ func main() {
 	// Public auth routes
 	mux.HandleFunc("/setup",     setupH.ServeHTTP)
 	mux.HandleFunc("/api/setup", setupH.Create)
+	mux.HandleFunc("/api/verify-email", verifyH.VerifyEmail)
 	mux.HandleFunc("/login",     loginH.ServeHTTP)
 	mux.HandleFunc("/logout",    loginH.Logout)
 
@@ -71,6 +77,7 @@ func main() {
 	// Protected API
 	mux.HandleFunc("/api/scan",         scanH.ServeHTTP)
 	mux.HandleFunc("/api/scan/cancel",  scanH.Cancel)
+	mux.HandleFunc("/api/scan/subnet",  scanH.SubnetScan)
 	mux.HandleFunc("/api/subnet",       discoveryH.Subnet)
 	mux.HandleFunc("/api/discover",     discoveryH.Discover)
 	mux.HandleFunc("/api/history",      historyH.List)
@@ -88,7 +95,8 @@ func main() {
             w.Write([]byte(`{"error":"method not allowed"}`))
         }
     })
-    mux.HandleFunc("/api/schedules/", schedH.Route)
+	mux.HandleFunc("/api/schedules/", schedH.Route)
+	mux.HandleFunc("/api/settings/password", settingsH.ChangePassword)
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))

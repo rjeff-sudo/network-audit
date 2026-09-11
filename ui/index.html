@@ -397,6 +397,10 @@ tr:hover td{background:rgba(255,255,255,0.02)}
           class="nav-tab" role="tab" aria-selected="false">
           Schedules
         </button>
+        <button onclick="showView('settings')" data-view="settings"
+          class="nav-tab" role="tab" aria-selected="false">
+          Settings
+        </button>
       </div>
 
       <div style="display:flex;align-items:center;gap:10px">
@@ -452,6 +456,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
             class="input" style="flex:1" aria-label="Subnet CIDR"/>
           <button onclick="discoverDevices()" class="btn btn-mint">
             Scan network
+          </button>
+          <button onclick="scanAllDevices()" class="btn btn-iris">
+            Scan all
           </button>
         </div>
         <div id="device-grid" class="hidden" aria-live="polite">
@@ -688,6 +695,39 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         No schedules yet — add one above to start automating your audits.
       </div>
       <div id="sched-grid" class="sched-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Settings View ─────────────────────────────────────────────── -->
+<div id="view-settings" class="view hidden" role="main" aria-label="Settings">
+  <div class="wrap" style="padding-top:28px;padding-bottom:48px">
+
+    <div class="section-head">
+      <div>
+        <h1 class="section-title">Settings</h1>
+        <p class="section-sub">Manage your account</p>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:480px">
+      <div class="card-head">
+        <div>
+          <p class="card-title">Change Password</p>
+          <p class="card-sub">Update your account password</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <input id="settings-current-pw" type="password" placeholder="Current password" class="input" aria-label="Current password"/>
+          <input id="settings-new-pw" type="password" placeholder="New password (min 8 chars)" class="input" aria-label="New password"/>
+          <input id="settings-confirm-pw" type="password" placeholder="Confirm new password" class="input" aria-label="Confirm new password"/>
+          <button onclick="changePassword()" class="btn btn-mint" style="align-self:flex-start">
+            Update password
+          </button>
+        </div>
+      </div>
     </div>
 
   </div>

@@ -79,6 +79,31 @@ async function discoverDevices() {
   }
 }
 
+async function scanAllDevices() {
+  const subnet = document.getElementById('subnet-input').value.trim();
+  if (!subnet) { toast('Enter a subnet first', 'error'); return; }
+  if (state.scanning) { toast('Audit already running', 'error'); return; }
+
+  resetAuditUI();
+  state.scanning = true;
+  const btn = document.getElementById('btn-audit');
+  btn.disabled = true; btn.textContent = 'Scanning...';
+  show('progress-wrap');
+  setProgress(0, 'Starting subnet scan on ' + subnet);
+
+  try {
+    const res  = await fetch('/api/scan/subnet', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ subnet }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+  } catch (err) {
+    onScanError(err.message);
+  }
+}
+
 function onDevicesFound(devices) {
   const list  = document.getElementById('device-list');
   const grid  = document.getElementById('device-grid');
@@ -628,6 +653,39 @@ function intervalLabel(hrs) {
   if (hrs === 48)  return 'Every 2 days';
   if (hrs === 168) return 'Every week';
   return `Every ${hrs} hours`;
+}
+
+/* ── Settings ──────────────────────────────────────────────────── */
+async function changePassword() {
+  const current = document.getElementById('settings-current-pw').value;
+  const newPw   = document.getElementById('settings-new-pw').value;
+  const confirm = document.getElementById('settings-confirm-pw').value;
+
+  if (!current || !newPw || !confirm) {
+    toast('All fields are required', 'error'); return;
+  }
+  if (newPw.length < 8) {
+    toast('New password must be at least 8 characters', 'error'); return;
+  }
+  if (newPw !== confirm) {
+    toast('New passwords do not match', 'error'); return;
+  }
+
+  try {
+    const res  = await fetch('/api/settings/password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ current_password: current, new_password: newPw }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('Password changed successfully', 'success');
+    document.getElementById('settings-current-pw').value = '';
+    document.getElementById('settings-new-pw').value = '';
+    document.getElementById('settings-confirm-pw').value = '';
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
 }
 
 /* ── Boot ───────────────────────────────────────────────────────── */
