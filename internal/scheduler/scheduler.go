@@ -3,6 +3,7 @@
 package scheduler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -110,7 +111,7 @@ func (s *Scheduler) runScan(scheduleID int64, ip string, intervalHrs int) {
 		s.hub.SendPortFound(ip, port)
 	}
 
-	result, err := s.engine.Run(ip, onProgress, onPortFound)
+	result, err := s.engine.Run(context.Background(), ip, onProgress, onPortFound)
 	if err != nil {
 		log.Printf("[scheduler] audit failed for %s: %v", ip, err)
 		s.hub.SendError(fmt.Sprintf("Scheduled scan of %s failed: %s", ip, err.Error()))

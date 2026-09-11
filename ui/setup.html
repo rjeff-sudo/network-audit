@@ -237,6 +237,14 @@ body::before{
       </div>
 
       <div class="field">
+        <label for="email">Email <span style="color:var(--stone);font-weight:300">(optional)</span></label>
+        <input id="email" name="email" type="email"
+          placeholder="you@company.com"
+          autocomplete="email"/>
+        <p class="field-hint">Used for scan report delivery and email verification.</p>
+      </div>
+
+      <div class="field">
         <label for="confirm">Confirm Password</label>
         <input id="confirm" name="confirm" type="password"
           placeholder="Repeat your password"
@@ -364,10 +372,11 @@ document.getElementById('setup-form').addEventListener('submit', async function(
   btnText.textContent   = 'Creating account...';
 
   try {
+    const email = document.getElementById('email').value.trim();
     const res = await fetch('/api/setup', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, email }),
     });
     const data = await res.json();
 
