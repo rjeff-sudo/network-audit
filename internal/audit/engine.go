@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rjeff-sudo/sme-shield/internal/models"
+	"github.com/rjeff-sudo/sme-shield/internal/network"
 	"github.com/rjeff-sudo/sme-shield/internal/scanner"
 	"github.com/rjeff-sudo/sme-shield/platform/nvd"
 )
@@ -126,6 +127,62 @@ func resolveHostname(ip string) string {
 		return ""
 	}
 	return strings.TrimSuffix(names[0], ".")
+}
+
+// RunSubnet discovers all devices on cidr and audits each one sequentially.
+// It sends progress updates via onProgress and results via onDeviceComplete.
+func (e *Engine) RunSubnet(
+	ctx context.Context,
+	cidr string,
+	onProgress ProgressFunc,
+	onDeviceComplete func(models.ScanResult),
+) ([]models.ScanResult, error) {
+
+	onProgress(0, "Discovering devices on "+cidr)
+
+	timeout := time.Duration(e.cfg.Discovery.TimeoutMs) * time.Millisecond
+	devices, err := network.DiscoverDevices(
+		cidr, e.cfg.Discovery.ProbePorts, e.cfg.Discovery.WorkerCount, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("discovery failed: %w", err)
+	}
+
+	if len(devices) == 0 {
+		onProgress(100, "No devices found")
+		return nil, nil
+	}
+
+	onProgress(5, fmt.Sprintf("Found %d device(s) — starting audits", len(devices)))
+
+	var results []models.ScanResult
+	for i, dev := range devices {
+		if ctx.Err() != nil {
+			return results, ctx.Err()
+		}
+
+		pct := 5 + int(float64(i)/float64(len(devices))*95)
+		onProgress(pct, fmt.Sprintf("Auditing %s (%d of %d)", dev.IP, i+1, len(devices)))
+
+		onPortFound := func(port models.Port) {}
+		onProg := func(pct int, msg string) {
+			onProgress(pct, fmt.Sprintf("[%s] %s", dev.IP, msg))
+		}
+
+		result, err := e.Run(ctx, dev.IP, onProg, onPortFound)
+		if err != nil {
+			if ctx.Err() != nil {
+				return results, ctx.Err()
+			}
+			log.Printf("[audit] subnet scan: %s failed: %v", dev.IP, err)
+			continue
+		}
+		result.Hostname = dev.Hostname
+		results = append(results, result)
+		onDeviceComplete(result)
+	}
+
+	onProgress(100, fmt.Sprintf("Subnet audit complete — %d device(s) scanned", len(results)))
+	return results, nil
 }
 
 func (e *Engine) persist(r models.ScanResult) (int64, error) {
