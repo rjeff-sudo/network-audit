@@ -39,6 +39,14 @@ type Config struct {
 		SessionSecret   string `yaml:"session_secret"`
 		SessionTTLHours int    `yaml:"session_ttl_hours"`
 	} `yaml:"auth"`
+
+	SMTP struct {
+		Host        string `yaml:"host"`
+		Port        int    `yaml:"port"`
+		Username    string `yaml:"username"`
+		Password    string `yaml:"password"`
+		FromAddress string `yaml:"from_address"`
+	} `yaml:"smtp"`
 }
 
 // ── Network discovery ─────────────────────────────────────────────────────────

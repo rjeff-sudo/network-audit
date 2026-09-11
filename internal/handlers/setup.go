@@ -2,20 +2,24 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 
 	"github.com/rjeff-sudo/sme-shield/internal/auth"
+	"github.com/rjeff-sudo/sme-shield/platform/email"
 )
 
 // SetupHandler handles the first-run account creation flow.
 type SetupHandler struct {
-	auth *auth.Auth
+	auth      *auth.Auth
+	emailCli  *email.Client
+	serverURL string // base URL for verification links
 }
 
 // NewSetupHandler constructs a SetupHandler.
-func NewSetupHandler(a *auth.Auth) *SetupHandler {
-	return &SetupHandler{auth: a}
+func NewSetupHandler(a *auth.Auth, emailCli *email.Client, serverURL string) *SetupHandler {
+	return &SetupHandler{auth: a, emailCli: emailCli, serverURL: serverURL}
 }
 
 // ServeHTTP routes GET /setup (show page) and POST /api/setup (create user).
@@ -52,6 +56,7 @@ func (h *SetupHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
@@ -61,6 +66,22 @@ func (h *SetupHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.auth.CreateUser(body.Username, body.Password); err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Collect email if provided and send verification.
+	if body.Email != "" {
+		if err := h.auth.SetEmail(body.Email); err != nil {
+			log.Printf("[setup] set email error: %v", err)
+		} else if h.emailCli != nil && h.emailCli.IsConfigured() {
+			token, err := h.auth.SendVerification()
+			if err != nil {
+				log.Printf("[setup] send verification error: %v", err)
+			} else {
+				if err := h.emailCli.SendVerification(body.Email, token, h.serverURL); err != nil {
+					log.Printf("[setup] email send error: %v", err)
+				}
+			}
+		}
 	}
 
 	jsonOK(w, map[string]string{"status": "ok"})

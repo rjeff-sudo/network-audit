@@ -69,5 +69,11 @@ var migrations = []string{
  
 	// v8 — index for fast next_run polling
 	`CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run)`,
+
+	// v9 — email verification columns on users table
+	`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE users ADD COLUMN verification_token TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE users ADD COLUMN token_expires_at TEXT NOT NULL DEFAULT ''`,
  
 }

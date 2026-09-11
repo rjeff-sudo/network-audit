@@ -123,6 +123,54 @@ func (a *Auth) GetUsername() string {
 	return username
 }
 
+// SetEmail stores an email address for the user.
+func (a *Auth) SetEmail(email string) error {
+	_, err := a.db.Exec(`UPDATE users SET email = ? WHERE username = ?`, email, a.GetUsername())
+	return err
+}
+
+// SendVerification generates a token, stores it, and returns it for the caller to email.
+func (a *Auth) SendVerification() (string, error) {
+	token := randomHex(32)
+	expires := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+	_, err := a.db.Exec(
+		`UPDATE users SET verification_token = ?, token_expires_at = ? WHERE username = ?`,
+		token, expires, a.GetUsername())
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// VerifyEmail marks the user's email as verified if the token matches and hasn't expired.
+func (a *Auth) VerifyEmail(token string) error {
+	var storedToken, expiresStr string
+	err := a.db.QueryRow(
+		`SELECT verification_token, token_expires_at FROM users WHERE username = ?`,
+		a.GetUsername()).Scan(&storedToken, &expiresStr)
+	if err != nil {
+		return fmt.Errorf("user not found")
+	}
+	if storedToken != token {
+		return fmt.Errorf("invalid verification token")
+	}
+	expires, err := time.Parse(time.RFC3339, expiresStr)
+	if err != nil || time.Now().After(expires) {
+		return fmt.Errorf("verification token has expired")
+	}
+	_, err = a.db.Exec(
+		`UPDATE users SET email_verified = 1, verification_token = '', token_expires_at = '' WHERE username = ?`,
+		a.GetUsername())
+	return err
+}
+
+// IsEmailVerified returns true if the user's email is verified.
+func (a *Auth) IsEmailVerified() bool {
+	var verified int
+	a.db.QueryRow(`SELECT email_verified FROM users LIMIT 1`).Scan(&verified)
+	return verified == 1
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 // SetSession writes a signed session cookie to the response.

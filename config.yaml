@@ -55,3 +55,10 @@ nvd:
   base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
   cache_ttl_hours: 168
   request_delay_ms: 600
+
+smtp:
+  host: "smtp.gmail.com"
+  port: 587
+  username: ""
+  password: ""
+  from_address: ""
