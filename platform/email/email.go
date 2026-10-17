@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/smtp"
+	"time"
 )
 
 // Config holds SMTP settings from config.yaml.
@@ -35,15 +36,56 @@ func (c *Client) SendVerification(toEmail, token, baseURL string) error {
 	}
 
 	link := fmt.Sprintf("%s/api/verify-email?token=%s", baseURL, token)
-	subject := "Verify your email — SME-Shield"
-	body := fmt.Sprintf(
-		"Hi,\n\nPlease verify your email address by clicking the link below:\n\n"+
-			"%s\n\nThis link will expire in 24 hours.\n\n"+
-			"If you did not create an account, you can ignore this email.\n\n"+
-			"— SME-Shield", link)
+	subject := "Verify your email address for Sentry"
+	boundary := fmt.Sprintf("=_boundary_%d", time.Now().UnixNano())
 
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
-		c.cfg.FromAddress, toEmail, subject, body)
+	// Plain-text body
+	textBody := fmt.Sprintf(
+		"Hi,\r\n\r\n"+
+			"Please verify your email address for your Sentry account.\r\n\r\n"+
+			"Click the link below to verify:\r\n\r\n"+
+			"%s\r\n\r\n"+
+			"This link will expire in 24 hours.\r\n\r\n"+
+			"If you did not create an Sentry account, you can safely ignore this email.\r\n\r\n"+
+			"— The Sentry Team\r\n", link)
+
+	// HTML body (helps with spam scoring — legitimate emails usually have both)
+	htmlBody := fmt.Sprintf(
+		"<html><body style=\"font-family:sans-serif;font-size:14px;color:#333\">\r\n"+
+			"<p>Hi,</p>\r\n"+
+			"<p>Please verify your email address for your Sentry account.</p>\r\n"+
+			"<p><a href=\"%s\" style=\"display:inline-block;padding:10px 24px;background:#200f0a;color:#a2f6f5;border-radius:999px;text-decoration:none\">Verify Email</a></p>\r\n"+
+			"<p style=\"font-size:12px;color:#999\">This link expires in 24 hours. If you did not create an account, ignore this email.</p>\r\n"+
+			"</body></html>\r\n", link)
+
+	msg := fmt.Sprintf(
+		"From: Sentry <%s>\r\n"+
+			"To: %s\r\n"+
+			"Reply-To: %s\r\n"+
+			"Subject: %s\r\n"+
+			"MIME-Version: 1.0\r\n"+
+			"Content-Type: multipart/alternative; boundary=\"%s\"\r\n"+
+			"X-Mailer: Sentry\r\n"+
+			"List-Unsubscribe: <mailto:%s?subject=unsubscribe>\r\n"+
+			"Precedence: bulk\r\n"+
+			"\r\n"+
+			"--%s\r\n"+
+			"Content-Type: text/plain; charset=UTF-8\r\n"+
+			"Content-Transfer-Encoding: 7bit\r\n"+
+			"\r\n"+
+			"%s\r\n"+
+			"--%s\r\n"+
+			"Content-Type: text/html; charset=UTF-8\r\n"+
+			"Content-Transfer-Encoding: 7bit\r\n"+
+			"\r\n"+
+			"%s\r\n"+
+			"--%s--\r\n",
+		c.cfg.FromAddress, toEmail, c.cfg.FromAddress,
+		subject, boundary,
+		c.cfg.FromAddress,
+		boundary, textBody,
+		boundary, htmlBody,
+		boundary)
 
 	addr := fmt.Sprintf("%s:%d", c.cfg.Host, c.cfg.Port)
 	auth := smtp.PlainAuth("", c.cfg.Username, c.cfg.Password, c.cfg.Host)

@@ -1,4 +1,4 @@
-// Package report generates PDF security audit reports for SME-Shield.
+// Package report generates PDF security audit reports for Sentry.
 package report
 
 import (
@@ -76,7 +76,7 @@ func drawHeader(pdf *gofpdf.Fpdf, data Data) {
 	pdf.SetFont("Helvetica", "B", 20)
 	setTextHex(pdf, "#FFFFFF")
 	pdf.SetXY(16, 7)
-	pdf.CellFormat(90, 10, "SME-Shield", "", 0, "L", false, 0, "")
+	pdf.CellFormat(90, 10, "Sentry", "", 0, "L", false, 0, "")
 
 	pdf.SetFont("Helvetica", "", 9)
 	setTextHex(pdf, "#94A3B8")
@@ -161,7 +161,7 @@ func drawWhatThisMeans(pdf *gofpdf.Fpdf, data Data) {
 	pdf.SetFont("Helvetica", "", 8)
 	setTextHex(pdf, colMuted)
 	pdf.MultiCell(170, 5,
-		"SME-Shield checks each open service against the NIST National Vulnerability Database (NVD) - "+
+		"Sentry checks each open service against the NIST National Vulnerability Database (NVD) - "+
 			"a global register of known security weaknesses. Critical weaknesses reduce your score more than minor ones. "+
 			"A score of 80 or above means your device is in good shape.",
 		"", "L", false)
@@ -276,7 +276,7 @@ func drawRecommendations(pdf *gofpdf.Fpdf, data Data) {
 		pdf.MultiCell(0, 6,
 			"No immediate actions required. To stay secure:\n"+
 				"  1. Apply all operating system and software updates monthly.\n"+
-				"  2. Run SME-Shield once a month to check for new vulnerabilities.\n"+
+				"  2. Run Sentry once a month to check for new vulnerabilities.\n"+
 				"  3. Disable any services you no longer use.",
 			"", "L", false)
 		return
@@ -337,15 +337,15 @@ func drawFooter(pdf *gofpdf.Fpdf, data Data) {
 	pdf.SetFont("Helvetica", "I", 7)
 	setTextHex(pdf, "#94A3B8")
 	pdf.MultiCell(0, 4,
-		"This report was generated automatically by SME-Shield. Vulnerability data is sourced from the NIST National "+
+		"This report was generated automatically by Sentry. Vulnerability data is sourced from the NIST National "+
 			"Vulnerability Database (nvd.nist.gov). This report is intended as guidance for non-technical business owners "+
 			"and does not constitute a full penetration test. Consult a qualified cybersecurity professional before making "+
-			"changes to production systems. SME-Shield is not liable for actions taken based on this report.",
+			"changes to production systems. Sentry is not liable for actions taken based on this report.",
 		"", "C", false)
 	pdf.Ln(2)
 	setTextHex(pdf, "#CBD5E1")
 	pdf.CellFormat(0, 5,
-		fmt.Sprintf("SME-Shield  |  Report SCN-%04d  |  %s",
+		fmt.Sprintf("Sentry  |  Report SCN-%04d  |  %s",
 			data.ScanID,
 			data.ScanTime.In(eat).Format("02 Jan 2006")),
 		"", 0, "C", false, 0, "")

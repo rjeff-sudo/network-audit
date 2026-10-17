@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>SME-Shield — Setup</title>
+<title>Sentry — Setup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
@@ -190,7 +190,7 @@ body::before{
           stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <span class="logo-name">SME-SHIELD</span>
+    <span class="logo-name">SENTRY</span>
   </div>
 
   <!-- Step dots -->
@@ -202,9 +202,9 @@ body::before{
 
   <!-- Form -->
   <div id="form-wrap">
-    <h1 class="heading">Welcome to <span class="mint">SME-Shield</span></h1>
+    <h1 class="heading">Welcome to <span class="mint">Sentry</span></h1>
     <p class="subheading">
-      This is your first time running SME-Shield. Create your admin account
+      This is your first time running Sentry. Create your admin account
       to secure access to your dashboard.
     </p>
 
@@ -394,7 +394,7 @@ document.getElementById('setup-form').addEventListener('submit', async function(
     setTimeout(() => { window.location.href = '/login'; }, 2000);
 
   } catch(err) {
-    showError('Could not connect to the server. Is SME-Shield running?');
+    showError('Could not connect to the server. Is Sentry running?');
     btn.disabled = false;
     spinner.style.display = 'none';
     btnText.textContent   = 'Create account';
