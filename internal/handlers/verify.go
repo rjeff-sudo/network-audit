@@ -17,6 +17,7 @@ func NewVerifyHandler(a *auth.Auth) *VerifyHandler {
 }
 
 // VerifyEmail handles GET /api/verify-email?token=xxx
+// Tokens are looked up across all users, so links work without a session.
 func (h *VerifyHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
@@ -29,5 +30,5 @@ func (h *VerifyHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/index.html?verified=1", http.StatusFound)
+	http.Redirect(w, r, "/login?verified=1", http.StatusFound)
 }

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/rjeff-sudo/sme-shield/internal/auth"
 )
@@ -46,7 +47,7 @@ func (h *LoginHandler) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	var username, password string
 
 	ct := r.Header.Get("Content-Type")
-	if ct == "application/json" || ct == "application/json; charset=utf-8" {
+	if strings.HasPrefix(ct, "application/json") {
 		var body struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
@@ -68,13 +69,19 @@ func (h *LoginHandler) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !h.auth.CheckCredentials(username, password) {
+		// Distinguish "registered but never verified the email" from bad
+		// credentials so the user gets a useful message.
+		if h.auth.AccountExists(username) && !h.auth.IsEmailVerifiedFor(username) {
+			http.Redirect(w, r, "/login?error=unverified", http.StatusFound)
+			return
+		}
 		// Wrong credentials — redirect back with error flag
 		http.Redirect(w, r, "/login?error=1", http.StatusFound)
 		return
 	}
 
-	// Correct — set session cookie and go to dashboard
-	h.auth.SetSession(w)
+	// Correct — set a session bound to this user and go to dashboard
+	h.auth.SetSession(w, username)
 	http.Redirect(w, r, "/index.html", http.StatusFound)
 }
 

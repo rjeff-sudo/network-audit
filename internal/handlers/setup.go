@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 
@@ -63,25 +62,15 @@ func (h *SetupHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.auth.CreateUser(body.Username, body.Password); err != nil {
-		jsonError(w, err.Error(), http.StatusBadRequest)
+	if body.Email != "" && !auth.IsValidEmail(body.Email) {
+		jsonError(w, "please enter a valid email address", http.StatusBadRequest)
 		return
 	}
 
-	// Collect email if provided and send verification.
-	if body.Email != "" {
-		if err := h.auth.SetEmail(body.Email); err != nil {
-			log.Printf("[setup] set email error: %v", err)
-		} else if h.emailCli != nil && h.emailCli.IsConfigured() {
-			token, err := h.auth.SendVerification()
-			if err != nil {
-				log.Printf("[setup] send verification error: %v", err)
-			} else {
-				if err := h.emailCli.SendVerification(body.Email, token, h.serverURL); err != nil {
-					log.Printf("[setup] email send error: %v", err)
-				}
-			}
-		}
+	// The first-run user is trusted and created pre-verified.
+	if err := h.auth.CreateUser(body.Username, body.Password, body.Email); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	jsonOK(w, map[string]string{"status": "ok"})
