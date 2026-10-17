@@ -75,5 +75,12 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`,
 	`ALTER TABLE users ADD COLUMN verification_token TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE users ADD COLUMN token_expires_at TEXT NOT NULL DEFAULT ''`,
- 
+
+	// v10 — per-user data ownership: attribute existing scans/schedules to the first user
+	`ALTER TABLE scans ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE schedules ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0`,
+	`UPDATE scans SET user_id = COALESCE((SELECT id FROM users ORDER BY id LIMIT 1), 0) WHERE user_id = 0`,
+	`UPDATE schedules SET user_id = COALESCE((SELECT id FROM users ORDER BY id LIMIT 1), 0) WHERE user_id = 0`,
+	`CREATE INDEX IF NOT EXISTS idx_scans_user_id     ON scans(user_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)`,
 }

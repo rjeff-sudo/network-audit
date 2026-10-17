@@ -1,4 +1,4 @@
-// Package handlers contains all HTTP handler functions for SME-Shield.
+// Package handlers contains all HTTP handler functions for Sentry.
 package handlers
 
 import (
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rjeff-sudo/sme-shield/internal/audit"
+	"github.com/rjeff-sudo/sme-shield/internal/auth"
 	"github.com/rjeff-sudo/sme-shield/internal/hub"
 	"github.com/rjeff-sudo/sme-shield/internal/models"
 )
@@ -79,7 +80,7 @@ func (h *ScanHandler) SubnetScan(w http.ResponseWriter, r *http.Request) {
 			h.hub.SendComplete(result)
 		}
 
-		_, err := h.engine.RunSubnet(scanCtx, subnet, onProgress, onDeviceComplete)
+		_, err := h.engine.RunSubnet(scanCtx, auth.UserIDFromContext(r.Context()), subnet, onProgress, onDeviceComplete)
 		if err != nil {
 			if scanCtx.Err() != nil {
 				h.hub.SendProgress(0, "Subnet scan cancelled")
@@ -158,7 +159,7 @@ func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.hub.SendPortFound(ip, port)
 		}
 
-		result, err := h.engine.Run(scanCtx, ip, onProgress, onPortFound)
+		result, err := h.engine.RunAs(scanCtx, auth.UserIDFromContext(r.Context()), ip, onProgress, onPortFound)
 		if err != nil {
 			if scanCtx.Err() != nil {
 				h.hub.SendProgress(0, "Scan cancelled")

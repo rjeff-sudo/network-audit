@@ -36,6 +36,18 @@ func (e *Engine) Run(
 	onProgress ProgressFunc,
 	onPortFound PortFoundFunc,
 ) (models.ScanResult, error) {
+	return e.RunAs(ctx, 0, ip, onProgress, onPortFound)
+}
+
+// RunAs runs a scan and attributes the persisted result to userID
+// (0 = unattributed/legacy). All HTTP-triggered scans pass the session user.
+func (e *Engine) RunAs(
+	ctx context.Context,
+	userID int64,
+	ip string,
+	onProgress ProgressFunc,
+	onPortFound PortFoundFunc,
+) (models.ScanResult, error) {
 
 	result := models.ScanResult{
 		IP:       ip,
@@ -63,7 +75,7 @@ func (e *Engine) Run(
 		result.RiskScore = 100
 		result.Summary = BuildSummary(nil)
 		onProgress(100, "No open ports found — host appears clean")
-		e.persist(result)
+		e.persist(userID, result)
 		return result, nil
 	}
 
@@ -112,7 +124,7 @@ func (e *Engine) Run(
 	result.Summary = BuildSummary(allCVEs)
 
 	onProgress(97, "Saving results to database")
-	id, err := e.persist(result)
+	id, err := e.persist(userID, result)
 	if err == nil {
 		result.ID = id
 	}
@@ -130,9 +142,11 @@ func resolveHostname(ip string) string {
 }
 
 // RunSubnet discovers all devices on cidr and audits each one sequentially.
-// It sends progress updates via onProgress and results via onDeviceComplete.
+// Results are attributed to userID. It sends progress updates via onProgress
+// and results via onDeviceComplete.
 func (e *Engine) RunSubnet(
 	ctx context.Context,
+	userID int64,
 	cidr string,
 	onProgress ProgressFunc,
 	onDeviceComplete func(models.ScanResult),
@@ -168,7 +182,7 @@ func (e *Engine) RunSubnet(
 			onProgress(pct, fmt.Sprintf("[%s] %s", dev.IP, msg))
 		}
 
-		result, err := e.Run(ctx, dev.IP, onProg, onPortFound)
+		result, err := e.RunAs(ctx, userID, dev.IP, onProg, onPortFound)
 		if err != nil {
 			if ctx.Err() != nil {
 				return results, ctx.Err()
@@ -185,14 +199,14 @@ func (e *Engine) RunSubnet(
 	return results, nil
 }
 
-func (e *Engine) persist(r models.ScanResult) (int64, error) {
+func (e *Engine) persist(userID int64, r models.ScanResult) (int64, error) {
 	if e.db == nil {
 		return 0, fmt.Errorf("no database connection")
 	}
 
 	res, err := e.db.Exec(
-		`INSERT INTO scans (ip, hostname, risk_score, scan_time) VALUES (?, ?, ?, ?)`,
-		r.IP, r.Hostname, r.RiskScore, r.ScanTime,
+		`INSERT INTO scans (ip, hostname, risk_score, scan_time, user_id) VALUES (?, ?, ?, ?, ?)`,
+		r.IP, r.Hostname, r.RiskScore, r.ScanTime, userID,
 	)
 	if err != nil {
 		log.Printf("[db] insert scan: %v", err)
