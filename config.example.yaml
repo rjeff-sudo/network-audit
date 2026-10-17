@@ -1,0 +1,76 @@
+# ── SME-Shield example configuration ───────────────────────────────────────────
+# Copy this file to config.yaml and fill in real values.
+#   cp config.example.yaml config.yaml
+#
+# config.yaml is git-ignored — it holds secrets and stays local.
+# Generate a strong session secret with:  openssl rand -hex 32
+
+server:
+  port: 8080
+  ui_dir: "./ui"
+  db_path: "./data/audit.db"   # stored in the Docker volume (or ./data/ locally)
+  cors_origin: ""              # "" = same-origin only, "*" = allow all, or e.g. "http://localhost:8080"
+
+auth:
+  # Username and password are created via the /setup page on first run.
+  # IMPORTANT: change this to a long random string before deploying.
+  session_secret: "CHANGE-ME-to-openssl-rand-hex-32"
+  session_ttl_hours: 168
+
+scanner:
+  worker_count: 100
+  timeout_ms: 500
+  banner_timeout_ms: 2000
+  ports:
+    - 21
+    - 22
+    - 23
+    - 25
+    - 53
+    - 80
+    - 110
+    - 135
+    - 139
+    - 143
+    - 443
+    - 445
+    - 993
+    - 995
+    - 1433
+    - 3306
+    - 3389
+    - 5432
+    - 5900
+    - 6379
+    - 8080
+    - 8443
+    - 27017
+
+discovery:
+  worker_count: 50
+  timeout_ms: 200
+  probe_ports:
+    - 22
+    - 80
+    - 443
+    - 445
+    - 3306
+
+nvd:
+  # Optional: request an API key at https://nvd.nist.gov/developers/request-an-api-key
+  # With a key NVD allows far more requests per minute.
+  api_key: ""
+  base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+  cache_ttl_hours: 168
+  request_delay_ms: 600
+
+smtp:
+  # Used for account email verification (required for open registration).
+  # For Gmail: enable 2-Step Verification, then create an App password
+  # (Google Account -> Security -> App passwords) and paste it below.
+  # NEVER use your real Gmail sign-in password here.
+  host: "smtp.gmail.com"
+  port: 587
+  username: "your-sender@gmail.com"   # the Gmail account that SENDS the emails
+  password: "xxxx xxxx xxxx xxxx"     # 16-char Gmail App Password (not your Gmail password!)
+  from_address: "your-sender@gmail.com"

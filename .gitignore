@@ -33,3 +33,7 @@ go.work.sum
 
 # Build artifacts
 bin/
+
+# Runtime secrets & state — never commit real credentials
+config.yaml
+data/
