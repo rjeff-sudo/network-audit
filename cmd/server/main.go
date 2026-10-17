@@ -58,8 +58,11 @@ func main() {
 	loginH     := handlers.NewLoginHandler(authSvc)
 	setupH     := handlers.NewSetupHandler(authSvc, emailCli, serverURL)
 	verifyH    := handlers.NewVerifyHandler(authSvc)
+	registerH  := handlers.NewRegisterHandler(authSvc, emailCli, serverURL)
 	schedH     := handlers.NewScheduleHandler(sched)
-	settingsH  := handlers.NewSettingsHandler(authSvc)
+	settingsH  := handlers.NewSettingsHandler(authSvc, emailCli, serverURL)
+	topoH      := handlers.NewTopologyHandler(db)
+	trendH     := handlers.NewTrendHandler(db)
 
 	// ── 5. Routes ─────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -68,6 +71,8 @@ func main() {
 	mux.HandleFunc("/setup",     setupH.ServeHTTP)
 	mux.HandleFunc("/api/setup", setupH.Create)
 	mux.HandleFunc("/api/verify-email", verifyH.VerifyEmail)
+	mux.HandleFunc("/register", registerH.ServeHTTP)
+	mux.HandleFunc("/api/register", registerH.Create)
 	mux.HandleFunc("/login",     loginH.ServeHTTP)
 	mux.HandleFunc("/logout",    loginH.Logout)
 
@@ -96,7 +101,12 @@ func main() {
         }
     })
 	mux.HandleFunc("/api/schedules/", schedH.Route)
-	mux.HandleFunc("/api/settings/password", settingsH.ChangePassword)
+	mux.HandleFunc("/api/settings/password",           settingsH.ChangePassword)
+	mux.HandleFunc("/api/settings/email-status",       settingsH.EmailStatus)
+	mux.HandleFunc("/api/settings/resend-verification", settingsH.ResendVerification)
+	mux.HandleFunc("/api/topology",                    topoH.HandleTopo)
+	mux.HandleFunc("/api/trends",                      trendH.HandleTrends)
+	mux.HandleFunc("/api/trends/devices",              trendH.HandleDeviceTrends)
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
@@ -122,7 +132,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Printf("[main] SME-Shield running → http://localhost%s", addr)
+		log.Printf("[main] Sentry running → http://localhost%s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[main] listen: %v", err)
 		}

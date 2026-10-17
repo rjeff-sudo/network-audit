@@ -1,4 +1,4 @@
-# ── SME-Shield example configuration ───────────────────────────────────────────
+# ── Sentry example configuration ───────────────────────────────────────────
 # Copy this file to config.yaml and fill in real values.
 #   cp config.example.yaml config.yaml
 #

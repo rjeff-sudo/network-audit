@@ -1,6 +1,6 @@
 version: "3.9"
 
-# ── SME-Shield ────────────────────────────────────────────────────────────────
+# ── Sentry ────────────────────────────────────────────────────────────────
 #
 # NETWORK MODE — IMPORTANT:
 #
@@ -17,12 +17,12 @@ version: "3.9"
 #   but the rest of the app (manual IP audit, PDF reports) will.
 #
 services:
-  sme-shield:
+  sentry:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sme-shield
-    image: sme-shield:latest
+    container_name: sentry
+    image: sentry:latest
 
     # Host networking — gives the scanner access to the real local network.
     # Remove this and uncomment `ports` below if you are on macOS or Windows.

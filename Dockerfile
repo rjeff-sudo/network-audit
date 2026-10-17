@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-w -s" \
-    -o bin/sme-shield \
+    -o bin/sentry \
     ./cmd/server
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ RUN apk add --no-cache sqlite-libs ca-certificates tzdata
 WORKDIR /app
 
 # Copy only the compiled binary and static assets.
-COPY --from=builder /app/bin/sme-shield ./sme-shield
+COPY --from=builder /app/bin/sentry ./sentry
 COPY --from=builder /app/ui             ./ui
 COPY --from=builder /app/config.yaml    ./config.yaml
 
@@ -38,4 +38,4 @@ RUN mkdir -p /app/data
 
 EXPOSE 8080
 
-CMD ["./sme-shield"]
+CMD ["./sentry"]
