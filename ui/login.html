@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>SME-Shield — Login</title>
+<title>Sentry — Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
@@ -105,7 +105,7 @@ body::before{
   box-shadow:0 0 0 3px rgba(162,246,245,0.08);
 }
 
-/* ── Error state ────────────────────────────────────────────────── */
+/* ── Banner state ───────────────────────────────────────────────── */
 .error-banner{
   display:flex;align-items:center;gap:10px;
   background:rgba(248,113,113,0.08);
@@ -127,6 +127,12 @@ body::before{
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .error-text{font-size:13px;color:var(--red)}
+
+/* ── Banner variants ─────────────────────────────────────────── */
+.error-banner.success{background:rgba(162,246,245,0.08);border-color:rgba(162,246,245,0.3)}
+.error-banner.success .error-text{color:var(--mint)}
+.error-banner.success .error-icon{background:rgba(162,246,245,0.2)}
+.error-banner.success .error-icon svg{display:none}
 
 /* ── Submit button ──────────────────────────────────────────────── */
 .btn-submit{
@@ -188,7 +194,7 @@ body::before{
           stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <span class="logo-name">SME-SHIELD</span>
+    <span class="logo-name">SENTRY</span>
     <span class="logo-sub">Network Auditor</span>
   </div>
 
@@ -200,7 +206,7 @@ body::before{
     Sign in to access your network security dashboard.
   </p>
 
-  <!-- Error banner — shown when ?error=1 is in the URL -->
+  <!-- Status banner — content depends on ?error= / ?verified= params -->
   <div id="error-banner" class="error-banner" style="display:none"
     role="alert" aria-live="assertive">
     <div class="error-icon" aria-hidden="true">
@@ -208,7 +214,7 @@ body::before{
         <path d="M4 2v3M4 6.5v.5" stroke="#f87171" stroke-width="1.2" stroke-linecap="round"/>
       </svg>
     </div>
-    <p class="error-text">Incorrect username or password. Please try again.</p>
+    <p class="error-text" id="banner-text">Incorrect username or password. Please try again.</p>
   </div>
 
   <!-- Login form -->
@@ -241,28 +247,47 @@ body::before{
 
   <!-- Footer -->
   <div class="card-footer">
-    <a href="/landing.html">← Back to home</a>
-    <span class="hint">
-      <span class="hint-dot" aria-hidden="true"></span>
-      Secure session
-    </span>
+    <a href="/register">Create an account</a>
+    <a href="/landing.html">← Home</a>
   </div>
 
 </div>
 
 <script>
-// Show error banner if redirected back with ?error=1
+// Show the right banner depending on ?error= / ?verified= params
 (function(){
-  if(new URLSearchParams(location.search).get('error') === '1'){
-    document.getElementById('error-banner').style.display = 'flex';
-    // Shake the password field too
-    const pwd = document.getElementById('password');
-    pwd.style.borderColor = 'rgba(248,113,113,0.5)';
-    pwd.focus();
+  const params = new URLSearchParams(location.search);
+  const banner = document.getElementById('error-banner');
+  const text   = document.getElementById('banner-text');
+
+  const messages = {
+    '1':            'Incorrect username or password. Please try again.',
+    'unverified':   'Your email has not been verified yet — check your inbox for the verification link before signing in.',
+    'missing_token':'Verification link is incomplete. Please request a new verification email.',
+    'invalid_token':'That verification link is invalid or has expired. Sign in and resend the verification email.',
+  };
+
+  let shownWith = null;
+  if (params.get('verified') === '1') {
+    banner.classList.add('success');
+    text.textContent = 'Email verified! Your account is active — you can sign in now.';
+    shownWith = 'success';
+  } else if (messages[params.get('error')]) {
+    text.textContent = messages[params.get('error')];
+    shownWith = 'error';
+  }
+
+  if (shownWith) {
+    banner.style.display = 'flex';
+    if (shownWith === 'error') {
+      // Shake the password field too
+      const pwd = document.getElementById('password');
+      pwd.style.borderColor = 'rgba(248,113,113,0.5)';
+      pwd.focus();
+    }
   }
 })();
 
-// Show spinner on submit
 document.getElementById('login-form').addEventListener('submit', function(){
   const btn     = document.getElementById('btn-submit');
   const spinner = document.getElementById('spinner');

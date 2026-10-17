@@ -453,6 +453,9 @@ async function downloadReport() {
 
 /* ── View switching ─────────────────────────────────────────────── */
 function showView(name) {
+  // Update URL hash without triggering hashchange
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById('view-' + name).classList.remove('hidden');
   document.querySelectorAll('.nav-tab').forEach(b => {
@@ -462,6 +465,9 @@ function showView(name) {
   });
   if (name === 'history')   loadHistory();
   if (name === 'schedules') loadSchedules();
+  if (name === 'settings')  loadEmailStatus();
+  if (name === 'topology')  loadTopology();
+  if (name === 'trends')    loadTrends();
 }
 
 function resetAuditUI() {
@@ -688,8 +694,384 @@ async function changePassword() {
   }
 }
 
+/* ── Email verification (Settings) ──────────────────────────────── */
+async function loadEmailStatus() {
+  const wrap = document.getElementById('email-status-wrap');
+  if (!wrap) return;
+  try {
+    const res  = await fetch('/api/settings/email-status');
+    if (res.status === 401) {
+      wrap.innerHTML = `<p style="font-size:13px;color:var(--red)">Session expired — <a href="/login" style="color:var(--mint)">log in again</a></p>`;
+      return;
+    }
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    let html = '';
+    if (!data.email) {
+      html = `
+        <p style="font-size:13px;color:var(--stone);margin-bottom:12px">No email address set.</p>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="settings-email-input" type="email" placeholder="you@company.com" class="input" style="flex:1"/>
+          <button onclick="saveEmail()" class="btn btn-mint" style="white-space:nowrap">Save email</button>
+        </div>`;
+    } else if (data.verified) {
+      html = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3)">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span style="font-size:13px;color:var(--cream)">${data.email}</span>
+        </div>
+        <p style="font-size:12px;color:var(--green)">Email verified</p>`;
+    } else {
+      html = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3)">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4" stroke="#fbbf24" stroke-width="1.2"/><path d="M6 4v2.5" stroke="#fbbf24" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </span>
+          <span style="font-size:13px;color:var(--cream)">${data.email}</span>
+        </div>
+        <p style="font-size:12px;color:#fbbf24;margin-bottom:12px">Email not verified</p>
+        ${data.smtp_configured
+          ? `<button onclick="resendVerification()" class="btn btn-mint" style="font-size:12px;padding:8px 16px">Resend verification email</button>`
+          : `<p style="font-size:12px;color:var(--stone)">SMTP is not configured — ask your admin to set it up in config.yaml</p>`
+        }`;
+    }
+    wrap.innerHTML = html;
+  } catch (err) {
+    wrap.innerHTML = `<p style="font-size:13px;color:var(--red)">Could not load email status: ${err.message}</p>`;
+  }
+}
+
+async function saveEmail() {
+  const input = document.getElementById('settings-email-input');
+  const email = input ? input.value.trim() : '';
+  if (!email) { toast('Please enter an email address', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Invalid email address', 'error'); return; }
+
+  try {
+    const res = await fetch('/api/settings/email-status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast('Email saved — check your inbox for verification', 'success');
+    loadEmailStatus();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+async function resendVerification() {
+  try {
+    const res  = await fetch('/api/settings/resend-verification', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast(data.status || 'Verification email sent', 'success');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+/* ── Network Topology Map ───────────────────────────────────────── */
+async function loadTopology() {
+  const svg = document.getElementById('topo-svg');
+  if (!svg) return;
+  svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#a69f9d" font-size="14">Loading topology...</text>';
+
+  try {
+    const res  = await fetch('/api/topology');
+    if (res.status === 401) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Session expired — <a href="/login" fill="#a2f6f5">log in</a></text>'; return; }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderTopology(svg, data.devices, data.gateway);
+  } catch (err) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Error: ${err.message}</text>`;
+  }
+}
+
+function renderTopology(svg, devices, gateway) {
+  const W = 900, H = 500, CX = W/2, CY = H/2;
+  svg.innerHTML = '';
+
+  if (!devices || devices.length === 0) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#a69f9d" font-size="14">No devices scanned yet. Run a scan to see your network map.</text>';
+    return;
+  }
+
+  // Defs for glow filters
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML = `
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="gwGrad"><stop offset="0%" stop-color="#858df9" stop-opacity="0.3"/><stop offset="100%" stop-color="#858df9" stop-opacity="0.05"/></radialGradient>
+  `;
+  svg.appendChild(defs);
+
+  // Gateway ring
+  const gwRing = svgEl('circle', { cx: CX, cy: CY, r: 40, fill: 'url(#gwGrad)', stroke: '#858df9', 'stroke-width': 1.5, opacity: 0.7 });
+  svg.appendChild(gwRing);
+  const gwLabel = svgEl('text', { x: CX, y: CY + 4, 'text-anchor': 'middle', fill: '#fcfaf9', 'font-size': 11, 'font-weight': 500 });
+  gwLabel.textContent = 'Gateway';
+  svg.appendChild(gwLabel);
+
+  // Position devices in a circle around the gateway
+  const radius = Math.min(W, H) * 0.35;
+  const angleStep = (2 * Math.PI) / devices.length;
+
+  devices.forEach((dev, i) => {
+    const angle = -Math.PI/2 + i * angleStep;
+    const x = CX + radius * Math.cos(angle);
+    const y = CY + radius * Math.sin(angle);
+    const color = riskColor(dev.risk_score);
+
+    // Connection line
+    const line = svgEl('line', { x1: CX, y1: CY, x2: x, y2: y, stroke: color, 'stroke-width': 1, opacity: 0.3 });
+    svg.appendChild(line);
+
+    // Device group (clickable)
+    const g = svgEl('g', { cursor: 'pointer', 'data-ip': dev.ip });
+    g.addEventListener('click', () => showTopoDetail(dev));
+
+    // Device type icon (small shape)
+    const icon = deviceIcon(dev.device_type);
+    const iconEl = svgEl('text', { x: x, y: y - 18, 'text-anchor': 'middle', 'font-size': 16 });
+    iconEl.textContent = icon;
+    g.appendChild(iconEl);
+
+    // Node circle
+    const circle = svgEl('circle', { cx: x, cy: y, r: 22, fill: color, opacity: 0.15, stroke: color, 'stroke-width': 1.5 });
+    g.appendChild(circle);
+
+    // Score text inside circle
+    const scoreText = svgEl('text', { x: x, y: y + 4, 'text-anchor': 'middle', fill: color, 'font-size': 13, 'font-weight': 500 });
+    scoreText.textContent = dev.risk_score;
+    g.appendChild(scoreText);
+
+    // IP label below
+    const ipLabel = svgEl('text', { x: x, y: y + 38, 'text-anchor': 'middle', fill: '#a69f9d', 'font-size': 10 });
+    ipLabel.textContent = dev.hostname || dev.ip;
+    g.appendChild(ipLabel);
+
+    // Device type label
+    const typeLabel = svgEl('text', { x: x, y: y + 50, 'text-anchor': 'middle', fill: '#a69f9d', 'font-size': 9, opacity: 0.6 });
+    typeLabel.textContent = dev.device_type;
+    g.appendChild(typeLabel);
+
+    svg.appendChild(g);
+  });
+}
+
+function showTopoDetail(dev) {
+  const panel = document.getElementById('topo-detail');
+  const color = riskColor(dev.risk_score);
+  document.getElementById('topo-detail-title').textContent = dev.hostname || dev.ip;
+  document.getElementById('topo-detail-sub').innerHTML = `<span style="color:${color}">${dev.risk_score}/100</span> · ${dev.device_type} · ${dev.os_hint}`;
+
+  let servicesHtml = '';
+  if (dev.services && dev.services.length > 0) {
+    servicesHtml = dev.services.map(s => `<span style="display:inline-block;padding:2px 8px;background:rgba(162,246,245,0.08);border:1px solid rgba(162,246,245,0.15);border-radius:999px;font-size:11px;margin:2px">${s}</span>`).join('');
+  } else {
+    servicesHtml = '<span style="color:var(--stone);font-size:12px">No services detected</span>';
+  }
+
+  document.getElementById('topo-detail-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div><p style="font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">IP Address</p><p style="font-size:13px;color:var(--cream)">${dev.ip}</p></div>
+      <div><p style="font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">Last Scan</p><p style="font-size:13px;color:var(--cream)">${new Date(dev.scan_time).toLocaleString()}</p></div>
+      <div><p style="font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">Open Ports</p><p style="font-size:13px;color:var(--cream)">${dev.open_ports}</p></div>
+      <div><p style="font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">CVEs Found</p><p style="font-size:13px;color:${dev.cve_count > 0 ? 'var(--red)' : 'var(--green)'}">${dev.cve_count}</p></div>
+    </div>
+    <p style="font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Services</p>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${servicesHtml}</div>
+  `;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+  return el;
+}
+
+function deviceIcon(type) {
+  const icons = { server: '🖥', workstation: '💻', printer: '🖨', router: '📡', iot: '📷', unknown: '❓' };
+  return icons[type] || '❓';
+}
+
+function riskColor(score) {
+  if (score >= 80) return '#4ade80';
+  if (score >= 50) return '#fbbf24';
+  if (score >= 20) return '#f97316';
+  return '#f87171';
+}
+
+/* ── Vulnerability Trend Tracker ────────────────────────────────── */
+async function loadTrends() {
+  try {
+    const [devicesRes, pointsRes] = await Promise.all([
+      fetch('/api/trends/devices'),
+      fetch('/api/trends'),
+    ]);
+    const devicesData = await devicesRes.json();
+    const pointsData  = await pointsRes.json();
+    if (devicesData.error) throw new Error(devicesData.error);
+
+    renderTrendChart(pointsData.points || []);
+    renderTrendDevices(devicesData.devices || []);
+  } catch (err) {
+    document.getElementById('trend-devices-list').innerHTML = `<p style="color:var(--red)">Error: ${err.message}</p>`;
+  }
+}
+
+function renderTrendChart(points) {
+  const svg = document.getElementById('trend-chart');
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  const W = 800, H = 280, PAD = { top: 20, right: 20, bottom: 40, left: 50 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  if (!points || points.length === 0) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#a69f9d" font-size="13">No scan data yet. Run some scans to see trends.</text>';
+    return;
+  }
+
+  // Y axis: 0-100
+  const yScale = (v) => PAD.top + plotH * (1 - v / 100);
+  // X axis: spread points evenly
+  const xScale = (i) => PAD.left + (i / Math.max(points.length - 1, 1)) * plotW;
+
+  // Grid lines
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = yScale(v);
+    const line = svgEl('line', { x1: PAD.left, y1: y, x2: W - PAD.right, y2: y, stroke: 'rgba(227,204,192,0.08)', 'stroke-width': 1 });
+    svg.appendChild(line);
+    const label = svgEl('text', { x: PAD.left - 8, y: y + 4, 'text-anchor': 'end', fill: '#a69f9d', 'font-size': 10 });
+    label.textContent = v;
+    svg.appendChild(label);
+  });
+
+  // Risk zones (background bands)
+  const zones = [
+    { y1: 0, y2: 20, color: 'rgba(248,113,113,0.04)' },
+    { y1: 20, y2: 50, color: 'rgba(249,115,22,0.03)' },
+    { y1: 50, y2: 80, color: 'rgba(251,191,36,0.03)' },
+    { y1: 80, y2: 100, color: 'rgba(74,222,128,0.03)' },
+  ];
+  zones.forEach(z => {
+    const rect = svgEl('rect', { x: PAD.left, y: yScale(z.y2), width: plotW, height: yScale(z.y1) - yScale(z.y2), fill: z.color });
+    svg.appendChild(rect);
+  });
+
+  // Line path
+  if (points.length > 1) {
+    let d = '';
+    points.forEach((p, i) => {
+      const x = xScale(i), y = yScale(p.risk_score);
+      d += (i === 0 ? 'M' : 'L') + `${x},${y}`;
+    });
+    const path = svgEl('path', { d, fill: 'none', stroke: '#a2f6f5', 'stroke-width': 2, 'stroke-linejoin': 'round' });
+    svg.appendChild(path);
+  }
+
+  // Data points
+  points.forEach((p, i) => {
+    const x = xScale(i), y = yScale(p.risk_score);
+    const color = riskColor(p.risk_score);
+
+    const circle = svgEl('circle', { cx: x, cy: y, r: 5, fill: color, stroke: '#200f0a', 'stroke-width': 1.5, cursor: 'pointer' });
+    circle.addEventListener('mouseenter', () => {
+      // Show tooltip
+      const tip = svgEl('g', { id: 'trend-tooltip' });
+      const bg = svgEl('rect', { x: x - 60, y: y - 40, width: 120, height: 32, rx: 4, fill: '#2b2538', stroke: 'rgba(227,204,192,0.2)' });
+      const txt = svgEl('text', { x: x, y: y - 22, 'text-anchor': 'middle', fill: '#fcfaf9', 'font-size': 11 });
+      txt.textContent = `${p.hostname || p.ip}: ${p.risk_score}`;
+      tip.appendChild(bg);
+      tip.appendChild(txt);
+      svg.appendChild(tip);
+    });
+    circle.addEventListener('mouseleave', () => {
+      const tip = svg.getElementById('trend-tooltip');
+      if (tip) tip.remove();
+    });
+    svg.appendChild(circle);
+  });
+
+  // X-axis labels (date range)
+  if (points.length > 0) {
+    const first = new Date(points[0].scan_time).toLocaleDateString();
+    const last  = new Date(points[points.length - 1].scan_time).toLocaleDateString();
+    const lbl1 = svgEl('text', { x: PAD.left, y: H - 8, fill: '#a69f9d', 'font-size': 10 });
+    lbl1.textContent = first;
+    svg.appendChild(lbl1);
+    const lbl2 = svgEl('text', { x: W - PAD.right, y: H - 8, 'text-anchor': 'end', fill: '#a69f9d', 'font-size': 10 });
+    lbl2.textContent = last;
+    svg.appendChild(lbl2);
+  }
+}
+
+function renderTrendDevices(devices) {
+  const wrap = document.getElementById('trend-devices-list');
+  if (!wrap) return;
+
+  if (!devices || devices.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--stone)">No devices scanned yet.</p>';
+    return;
+  }
+
+  let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+  devices.forEach(d => {
+    const color = riskColor(d.latest_score);
+    const barWidth = d.latest_score;
+    html += `
+      <div onclick="loadDeviceTrend('${d.ip}')" style="cursor:pointer;padding:10px 14px;background:rgba(227,204,192,0.03);border:1px solid rgba(227,204,192,0.08);border-radius:6px;transition:border-color 0.15s" onmouseover="this.style.borderColor='rgba(162,246,245,0.2)'" onmouseout="this.style.borderColor='rgba(227,204,192,0.08)'">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:13px;color:var(--cream)">${d.hostname || d.ip}</span>
+          <span style="font-size:12px;color:${color};font-weight:500">${d.latest_score}/100</span>
+        </div>
+        <div style="height:3px;background:rgba(227,204,192,0.08);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${barWidth}%;background:${color};border-radius:99px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span style="font-size:10px;color:var(--stone)">${d.scan_count} scan${d.scan_count !== 1 ? 's' : ''}</span>
+          <span style="font-size:10px;color:var(--stone)">${d.ip}</span>
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+async function loadDeviceTrend(ip) {
+  try {
+    const res  = await fetch(`/api/trends?ip=${encodeURIComponent(ip)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderTrendChart(data.points || []);
+  } catch (err) {
+    toast('Error loading trend: ' + err.message, 'error');
+  }
+}
+
 /* ── Boot ───────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   connectWS();
-  showView('dashboard');
+  // Restore view from URL hash (survives page refresh)
+  const hash = location.hash.replace('#', '');
+  const validViews = ['dashboard', 'history', 'schedules', 'topology', 'trends', 'settings'];
+  const initialView = validViews.includes(hash) ? hash : 'dashboard';
+  showView(initialView);
+});
+
+// Listen for hash changes (back/forward browser navigation)
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.replace('#', '');
+  const validViews = ['dashboard', 'history', 'schedules', 'settings'];
+  if (validViews.includes(hash)) showView(hash);
 });
