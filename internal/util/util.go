@@ -1,4 +1,4 @@
-// Package util contains small shared helpers used across the SME-Shield codebase.
+// Package util contains small shared helpers used across the Sentry codebase.
 package util
 
 import "fmt"

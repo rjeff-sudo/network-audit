@@ -1,4 +1,4 @@
-// Package models defines every shared data type in SME-Shield.
+// Package models defines every shared data type in Sentry.
 // No business logic lives here — only structs, enums, and constants.
 package models
 

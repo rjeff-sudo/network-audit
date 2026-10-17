@@ -36,7 +36,7 @@ var wellKnownPorts = map[int]string{
 	27017: "MongoDB",
 }
 
-var httpProbe = "HEAD / HTTP/1.0\r\nHost: localhost\r\nUser-Agent: SME-Shield/1.0\r\n\r\n"
+var httpProbe = "HEAD / HTTP/1.0\r\nHost: localhost\r\nUser-Agent: Sentry/1.0\r\n\r\n"
 
 var httpPorts = map[int]bool{80: true, 443: true, 8080: true, 8443: true}
 
