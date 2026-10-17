@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rjeff-sudo/sme-shield/internal/auth"
 	"github.com/rjeff-sudo/sme-shield/platform/report"
 )
 
@@ -35,7 +36,7 @@ func (h *ReportHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := h.buildReportData(id)
+	data, err := h.buildReportData(id, auth.UserIDFromContext(r.Context()))
 	if err == sql.ErrNoRows {
 		jsonError(w, "scan not found", http.StatusNotFound)
 		return
@@ -51,7 +52,7 @@ func (h *ReportHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("sme-shield-report-%s-%s.pdf",
+	filename := fmt.Sprintf("sentry-report-%s-%s.pdf",
 		data.IP,
 		data.ScanTime.Format("2006-01-02"),
 	)
@@ -63,14 +64,18 @@ func (h *ReportHandler) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildReportData queries the database and assembles a report.Data struct.
-func (h *ReportHandler) buildReportData(id int64) (report.Data, error) {
+func (h *ReportHandler) buildReportData(id, userID int64) (report.Data, error) {
 	var data report.Data
 	var scanTimeStr string
+	var ownerID int64
 
 	err := h.db.QueryRow(`
-		SELECT id, ip, COALESCE(hostname,''), risk_score, scan_time
+		SELECT id, ip, COALESCE(hostname,''), risk_score, scan_time, user_id
 		FROM scans WHERE id = ?`, id).
-		Scan(&data.ScanID, &data.IP, &data.Hostname, &data.RiskScore, &scanTimeStr)
+		Scan(&data.ScanID, &data.IP, &data.Hostname, &data.RiskScore, &scanTimeStr, &ownerID)
+	if err == nil && ownerID != userID {
+		return data, sql.ErrNoRows
+	}
 	if err != nil {
 		return data, err
 	}

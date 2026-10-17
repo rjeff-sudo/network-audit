@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/rjeff-sudo/sme-shield/internal/auth"
 )
 
 // HistoryHandler serves past scan results from the database.
@@ -50,9 +52,11 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	userID := auth.UserIDFromContext(r.Context())
+
 	// Get total count for pagination metadata.
 	var total int
-	h.db.QueryRow(`SELECT COUNT(*) FROM scans`).Scan(&total)
+	h.db.QueryRow(`SELECT COUNT(*) FROM scans WHERE user_id = ?`, userID).Scan(&total)
 
 	rows, err := h.db.Query(`
 		SELECT
@@ -65,9 +69,10 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			COALESCE(SUM(r.cve_count), 0) AS cve_count
 		FROM scans s
 		LEFT JOIN scan_results r ON r.scan_id = s.id
+		WHERE s.user_id = ?
 		GROUP BY s.id
 		ORDER BY s.scan_time DESC
-		LIMIT ? OFFSET ?`, limit, offset)
+		LIMIT ? OFFSET ?`, userID, limit, offset)
 	if err != nil {
 		jsonError(w, "database error", http.StatusInternalServerError)
 		return
@@ -119,10 +124,15 @@ func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var s scanRow
 	var scanTimeStr string
+	var ownerID int64
 	err = h.db.QueryRow(`
-		SELECT id, ip, COALESCE(hostname,''), risk_score, scan_time
+		SELECT id, ip, COALESCE(hostname,''), risk_score, scan_time, user_id
 		FROM scans WHERE id = ?`, id).
-		Scan(&s.ID, &s.IP, &s.Hostname, &s.RiskScore, &scanTimeStr)
+		Scan(&s.ID, &s.IP, &s.Hostname, &s.RiskScore, &scanTimeStr, &ownerID)
+	if err == nil && ownerID != auth.UserIDFromContext(r.Context()) {
+		jsonError(w, "scan not found", http.StatusNotFound)
+		return
+	}
 	if err == sql.ErrNoRows {
 		jsonError(w, "scan not found", http.StatusNotFound)
 		return
@@ -184,7 +194,9 @@ func (h *HistoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.db.Exec(`DELETE FROM scans WHERE id = ?`, id)
+	// Only the owning user may delete their own scan.
+	res, err := h.db.Exec(`DELETE FROM scans WHERE id = ? AND user_id = ?`,
+		id, auth.UserIDFromContext(r.Context()))
 	if err != nil {
 		jsonError(w, "database error", http.StatusInternalServerError)
 		return

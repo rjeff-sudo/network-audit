@@ -17,6 +17,7 @@ import (
 // Schedule represents one recurring scan job.
 type Schedule struct {
 	ID          int64      `json:"id"`
+	UserID      int64      `json:"user_id"`
 	IP          string     `json:"ip"`
 	Label       string     `json:"label"`
 	IntervalHrs int        `json:"interval_hrs"`
@@ -70,6 +71,7 @@ func (s *Scheduler) tick() {
 
 	type due struct {
 		id          int64
+		userID      int64
 		ip          string
 		label       string
 		intervalHrs int
@@ -77,7 +79,7 @@ func (s *Scheduler) tick() {
 	var jobs []due
 	for rows.Next() {
 		var j due
-		if err := rows.Scan(&j.id, &j.ip, &j.label, &j.intervalHrs); err != nil {
+		if err := rows.Scan(&j.id, &j.userID, &j.ip, &j.label, &j.intervalHrs); err != nil {
 			continue
 		}
 		jobs = append(jobs, j)
@@ -86,12 +88,13 @@ func (s *Scheduler) tick() {
 
 	for _, j := range jobs {
 		log.Printf("[scheduler] firing — %s (%s)", j.ip, j.label)
-		go s.runScan(j.id, j.ip, j.intervalHrs)
+		go s.runScan(j.id, j.userID, j.ip, j.intervalHrs)
 	}
 }
 
 // runScan executes an audit and updates last_run and next_run.
-func (s *Scheduler) runScan(scheduleID int64, ip string, intervalHrs int) {
+// Results are attributed to the schedule's owner.
+func (s *Scheduler) runScan(scheduleID, userID int64, ip string, intervalHrs int) {
 	now     := time.Now()
 	nextRun := now.Add(time.Duration(intervalHrs) * time.Hour).UTC().Format(time.RFC3339)
 
@@ -111,7 +114,7 @@ func (s *Scheduler) runScan(scheduleID int64, ip string, intervalHrs int) {
 		s.hub.SendPortFound(ip, port)
 	}
 
-	result, err := s.engine.Run(context.Background(), ip, onProgress, onPortFound)
+	result, err := s.engine.RunAs(context.Background(), userID, ip, onProgress, onPortFound)
 	if err != nil {
 		log.Printf("[scheduler] audit failed for %s: %v", ip, err)
 		s.hub.SendError(fmt.Sprintf("Scheduled scan of %s failed: %s", ip, err.Error()))
@@ -124,8 +127,8 @@ func (s *Scheduler) runScan(scheduleID int64, ip string, intervalHrs int) {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-// Create adds a new schedule.
-func (s *Scheduler) Create(ip, label string, intervalHrs int) (Schedule, error) {
+// Create adds a new schedule owned by the given user.
+func (s *Scheduler) Create(userID int64, ip, label string, intervalHrs int) (Schedule, error) {
 	if ip == "" {
 		return Schedule{}, fmt.Errorf("ip is required")
 	}
@@ -136,9 +139,9 @@ func (s *Scheduler) Create(ip, label string, intervalHrs int) (Schedule, error) 
 	nextRun := now.Add(time.Duration(intervalHrs) * time.Hour)
 
 	res, err := s.db.Exec(`
-		INSERT INTO schedules (ip, label, interval_hrs, enabled, next_run, created_at)
-		VALUES (?, ?, ?, 1, ?, ?)`,
-		ip, label, intervalHrs,
+		INSERT INTO schedules (user_id, ip, label, interval_hrs, enabled, next_run, created_at)
+		VALUES (?, ?, ?, ?, 1, ?, ?)`,
+		userID, ip, label, intervalHrs,
 		nextRun.Format(time.RFC3339),
 		now.Format(time.RFC3339),
 	)
@@ -147,17 +150,17 @@ func (s *Scheduler) Create(ip, label string, intervalHrs int) (Schedule, error) 
 	}
 	id, _ := res.LastInsertId()
 	return Schedule{
-		ID: id, IP: ip, Label: label,
+		ID: id, UserID: userID, IP: ip, Label: label,
 		IntervalHrs: intervalHrs, Enabled: true,
 		NextRun: nextRun, CreatedAt: now,
 	}, nil
 }
 
-// List returns all schedules ordered by next_run.
-func (s *Scheduler) List() ([]Schedule, error) {
+// List returns the user's schedules ordered by next_run.
+func (s *Scheduler) List(userID int64) ([]Schedule, error) {
 	rows, err := s.db.Query(`
-		SELECT id, ip, label, interval_hrs, enabled, last_run, next_run, created_at
-		FROM schedules ORDER BY next_run ASC`)
+		SELECT id, user_id, ip, label, interval_hrs, enabled, last_run, next_run, created_at
+		FROM schedules WHERE user_id = ? ORDER BY next_run ASC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +173,7 @@ func (s *Scheduler) List() ([]Schedule, error) {
 		var nextRunStr, createdAtStr string
 		var enabled int
 		if err := rows.Scan(
-			&sc.ID, &sc.IP, &sc.Label, &sc.IntervalHrs,
+			&sc.ID, &sc.UserID, &sc.IP, &sc.Label, &sc.IntervalHrs,
 			&enabled, &lastRunStr, &nextRunStr, &createdAtStr,
 		); err != nil {
 			continue
@@ -190,11 +193,11 @@ func (s *Scheduler) List() ([]Schedule, error) {
 	return out, nil
 }
 
-// Toggle enables or disables a schedule.
-func (s *Scheduler) Toggle(id int64, enabled bool) error {
+// Toggle enables or disables a schedule owned by the given user.
+func (s *Scheduler) Toggle(userID, id int64, enabled bool) error {
 	val := 0
 	if enabled { val = 1 }
-	res, err := s.db.Exec(`UPDATE schedules SET enabled = ? WHERE id = ?`, val, id)
+	res, err := s.db.Exec(`UPDATE schedules SET enabled = ? WHERE id = ? AND user_id = ?`, val, id, userID)
 	if err != nil {
 		return err
 	}
@@ -205,9 +208,9 @@ func (s *Scheduler) Toggle(id int64, enabled bool) error {
 	return nil
 }
 
-// Delete removes a schedule permanently.
-func (s *Scheduler) Delete(id int64) error {
-	res, err := s.db.Exec(`DELETE FROM schedules WHERE id = ?`, id)
+// Delete removes a schedule permanently (owner check applied).
+func (s *Scheduler) Delete(userID, id int64) error {
+	res, err := s.db.Exec(`DELETE FROM schedules WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -219,11 +222,12 @@ func (s *Scheduler) Delete(id int64) error {
 }
 
 // RunNow fires an immediate scan for a schedule regardless of next_run.
-func (s *Scheduler) RunNow(id int64) error {
+// Only the owning user may trigger it.
+func (s *Scheduler) RunNow(userID, id int64) error {
 	var ip string
 	var intervalHrs int
 	err := s.db.QueryRow(
-		`SELECT ip, interval_hrs FROM schedules WHERE id = ?`, id).
+		`SELECT ip, interval_hrs FROM schedules WHERE id = ? AND user_id = ?`, id, userID).
 		Scan(&ip, &intervalHrs)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("schedule %d not found", id)
@@ -231,6 +235,6 @@ func (s *Scheduler) RunNow(id int64) error {
 	if err != nil {
 		return err
 	}
-	go s.runScan(id, ip, intervalHrs)
+	go s.runScan(id, userID, ip, intervalHrs)
 	return nil
 }

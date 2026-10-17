@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rjeff-sudo/sme-shield/internal/auth"
 	"github.com/rjeff-sudo/sme-shield/internal/scheduler"
 )
 
@@ -25,7 +26,7 @@ func (h *ScheduleHandler) List(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	schedules, err := h.sched.List()
+	schedules, err := h.sched.List(auth.UserIDFromContext(r.Context()))
 	if err != nil {
 		jsonError(w, "could not load schedules", http.StatusInternalServerError)
 		return
@@ -58,7 +59,7 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sc, err := h.sched.Create(body.IP, body.Label, body.IntervalHrs)
+	sc, err := h.sched.Create(auth.UserIDFromContext(r.Context()), body.IP, body.Label, body.IntervalHrs)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -85,7 +86,7 @@ func (h *ScheduleHandler) Route(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if err := h.sched.RunNow(id); err != nil {
+		if err := h.sched.RunNow(auth.UserIDFromContext(r.Context()), id); err != nil {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -103,7 +104,7 @@ func (h *ScheduleHandler) Route(w http.ResponseWriter, r *http.Request) {
 			Enabled bool `json:"enabled"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		if err := h.sched.Toggle(id, body.Enabled); err != nil {
+		if err := h.sched.Toggle(auth.UserIDFromContext(r.Context()), id, body.Enabled); err != nil {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -113,7 +114,7 @@ func (h *ScheduleHandler) Route(w http.ResponseWriter, r *http.Request) {
 
 	// /api/schedules/{id} DELETE
 	if r.Method == http.MethodDelete {
-		if err := h.sched.Delete(id); err != nil {
+		if err := h.sched.Delete(auth.UserIDFromContext(r.Context()), id); err != nil {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
