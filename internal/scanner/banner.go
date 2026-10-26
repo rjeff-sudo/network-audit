@@ -91,6 +91,10 @@ func ParseBanner(raw string, port int) models.ServiceInfo {
 		return models.ServiceInfo{Product: m[1], Version: m[2], Raw: clean}
 	}
 
+	if m := regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)*).*$`).FindStringSubmatch(clean); len(m) >= 2 {
+		return models.ServiceInfo{Product: fallback, Version: m[1], Raw: clean}
+	}
+
 	if m := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_-]+)\s+([0-9][0-9A-Za-z._-]*)`).FindStringSubmatch(clean); len(m) >= 3 {
 		return models.ServiceInfo{Product: m[1], Version: m[2], Raw: clean}
 	}
