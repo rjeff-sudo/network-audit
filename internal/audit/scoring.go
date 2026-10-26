@@ -18,9 +18,9 @@ func CalculateScore(cves []models.CVE) int {
 			impact += 20
 		case c.Score >= 7.0:
 			impact += 10
-		case c.Score >= 4.0:
-			impact += 4
-		default:
+	case c.Score >= 4.0:
+		impact += 5
+	default:
 			impact += 1
 		}
 	}
@@ -63,11 +63,11 @@ func BuildSummary(cves []models.CVE) models.Summary {
 
 	score := CalculateScore(cves)
 	switch {
-	case score >= 80:
+	case score > 90:
 		s.Label = "Secure"
-	case score >= 60:
+	case score > 60:
 		s.Label = "Moderate Risk"
-	case score >= 30:
+	case score > 30:
 		s.Label = "High Risk"
 	default:
 		s.Label = "Critical"
