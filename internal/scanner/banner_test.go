@@ -71,8 +71,8 @@ func TestParseBanner_MySQL(t *testing.T) {
 	raw := "5.7.39-0ubuntu0.18.04.1"
 	info := ParseBanner(raw, 3306)
 	// MySQL banners are just version numbers — the generic regex should pick up 5.7.39
-	if info.Version == "Unknown" {
-		t.Errorf("expected to parse MySQL version from banner, got Unknown")
+	if info.Version != "5.7.39" {
+		t.Errorf("expected version 5.7.39, got %q", info.Version)
 	}
 }
 
