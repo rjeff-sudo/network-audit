@@ -113,20 +113,38 @@ func TestBuildSummary_Labels(t *testing.T) {
 		cves    []models.CVE
 		wantLbl string
 	}{
-		{
-			cves:    []models.CVE{{ID: "1", Score: 9.8, Severity: "CRITICAL"}},
-			wantLbl: "High Risk", // single critical → score ~80 region depending on log damping
+	{
+		cves: []models.CVE{
+			{ID: "1", Score: 9.8, Severity: "CRITICAL"},
+			{ID: "2", Score: 9.5, Severity: "CRITICAL"},
+			{ID: "3", Score: 8.5, Severity: "HIGH"},
+			{ID: "4", Score: 7.5, Severity: "HIGH"},
+			{ID: "5", Score: 5.0, Severity: "MEDIUM"},
 		},
-		{
-			cves: []models.CVE{
-				{ID: "1", Score: 9.8, Severity: "CRITICAL"},
-				{ID: "2", Score: 9.5, Severity: "CRITICAL"},
-				{ID: "3", Score: 8.5, Severity: "HIGH"},
-				{ID: "4", Score: 7.5, Severity: "HIGH"},
-				{ID: "5", Score: 5.0, Severity: "MEDIUM"},
-			},
-			wantLbl: "Critical",
+		wantLbl: "High Risk",
+	},
+	{
+		cves: []models.CVE{
+			{ID: "1", Score: 9.8, Severity: "CRITICAL"},
+			{ID: "2", Score: 9.5, Severity: "CRITICAL"},
+			{ID: "3", Score: 8.5, Severity: "HIGH"},
+			{ID: "4", Score: 7.5, Severity: "HIGH"},
+			{ID: "5", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "6", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "7", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "8", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "9", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "10", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "11", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "12", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "13", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "14", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "15", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "16", Score: 4.0, Severity: "MEDIUM"},
+			{ID: "17", Score: 4.0, Severity: "MEDIUM"},
 		},
+		wantLbl: "Critical",
+	},
 	}
 	for _, tt := range tests {
 		s := BuildSummary(tt.cves)
