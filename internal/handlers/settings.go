@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -103,6 +104,57 @@ func (h *SettingsHandler) EmailStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ChangeEmail handles POST /api/settings/change-email
+// The caller must supply their current password. The new email is stored as
+// pending until the user clicks the verification link; the original email
+// remains in place until then.
+func (h *SettingsHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var body struct {
+		Email string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.Email == "" || body.Password == "" {
+		jsonError(w, "email and password are required", http.StatusBadRequest)
+		return
+	}
+
+	username := auth.UserFromContext(r.Context())
+
+	token, err := h.auth.RequestEmailChange(username, body.Email, body.Password)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if h.emailCli != nil && h.emailCli.IsConfigured() {
+		if err := h.emailCli.SendVerification(body.Email, token, h.serverURL); err != nil {
+			log.Printf("[settings] change-email verification to %s: %v", body.Email, err)
+			jsonError(w, "the email address was saved but the verification email failed to send - please try again", http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, map[string]string{
+			"status": "ok",
+			"message": "Email change requested - check your inbox for the verification link. Your current email stays in place until you verify.",
+		})
+	} else {
+		link := fmt.Sprintf("%s/api/verify-email?token=%s", h.serverURL, token)
+		jsonOK(w, map[string]interface{}{
+			"status":       "ok",
+			"message":      "Email change requested - SMTP is not configured, so no email was sent. Visit this link to verify and complete the change: " + link,
+			"verify_link":  link,
+		})
+	}
+}
+
 // ResendVerification handles POST /api/settings/resend-verification
 func (h *SettingsHandler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -121,7 +173,7 @@ func (h *SettingsHandler) ResendVerification(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if h.emailCli == nil || !h.emailCli.IsConfigured() {
-		jsonError(w, "SMTP is not configured — cannot send email", http.StatusBadRequest)
+		jsonError(w, "SMTP is not configured - cannot send email", http.StatusBadRequest)
 		return
 	}
 

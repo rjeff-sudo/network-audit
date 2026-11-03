@@ -1,6 +1,6 @@
 // Package auth handles session-based authentication for Sentry.
 // Passwords are hashed with bcrypt and stored in SQLite.
-// Sessions use HMAC-SHA256 signed cookies that carry the username —
+// Sessions use HMAC-SHA256 signed cookies that carry the username -
 // no external dependencies.
 package auth
 
@@ -12,16 +12,18 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 const (
 	cookieName = "sentry_session"
-	bcryptCost = 12 // work factor — higher = slower = harder to brute force
+	bcryptCost = 12 // work factor - higher = slower = harder to brute force
 )
 
 // Config holds auth settings from config.yaml.
@@ -66,6 +68,36 @@ func IsValidEmail(e string) bool {
 	return at > 0 && at < len(e)-1 && !strings.Contains(e, " ") && strings.Contains(e[strings.Index(e, "@"):], ".")
 }
 
+// ValidatePassword enforces the password policy shared by setup,
+// registration and password change: at least 8 characters with a letter,
+// a number and a symbol/special character.
+func ValidatePassword(password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+	var hasLetter, hasDigit, hasSymbol bool
+	for _, c := range password {
+		switch {
+		case unicode.IsLetter(c):
+			hasLetter = true
+		case unicode.IsDigit(c):
+			hasDigit = true
+		case c != ' ':
+			hasSymbol = true
+		}
+	}
+	if !hasLetter {
+		return fmt.Errorf("password must contain at least one letter")
+	}
+	if !hasDigit {
+		return fmt.Errorf("password must contain at least one number")
+	}
+	if !hasSymbol {
+		return fmt.Errorf("password must contain at least one special character or symbol")
+	}
+	return nil
+}
+
 // CreateUser creates a verified account. Used for the first-run setup flow
 // (the person configuring the server is trusted without email verification).
 func (a *Auth) CreateUser(username, password, email string) error {
@@ -75,8 +107,8 @@ func (a *Auth) CreateUser(username, password, email string) error {
 	if !IsValidUsername(username) {
 		return fmt.Errorf("username must be 3-32 characters (letters, digits, _ . -)")
 	}
-	if len(password) < 8 {
-		return fmt.Errorf("password must be at least 8 characters")
+	if err := ValidatePassword(password); err != nil {
+		return err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
@@ -99,8 +131,10 @@ func (a *Auth) CreateUser(username, password, email string) error {
 	return nil
 }
 
-// Register creates an unverified account and returns the email verification
-// token. The account stays locked until the owner verifies their email.
+// Register records a pending registration and returns the email verification
+// token. No username or email is written to the users table until the owner
+// clicks the verification link, so unverified attempts never occupy a username
+// or store an email address.
 func (a *Auth) Register(username, password, email string) (string, error) {
 	if !IsValidUsername(username) {
 		return "", fmt.Errorf("username must be 3-32 characters (letters, digits, _ . -)")
@@ -108,8 +142,14 @@ func (a *Auth) Register(username, password, email string) (string, error) {
 	if !IsValidEmail(email) {
 		return "", fmt.Errorf("please enter a valid email address")
 	}
-	if len(password) < 8 {
-		return "", fmt.Errorf("password must be at least 8 characters")
+	if err := ValidatePassword(password); err != nil {
+		return "", err
+	}
+
+	// Reject a username that is already taken, whether by a verified account
+	// or by a pending (unverified) registration.
+	if a.usernameTaken(username) {
+		return "", fmt.Errorf("that username is already taken")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
@@ -117,25 +157,9 @@ func (a *Auth) Register(username, password, email string) (string, error) {
 		return "", fmt.Errorf("hash password: %w", err)
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = a.db.Exec(
-		`INSERT INTO users (username, password_hash, email, email_verified, created_at, updated_at)
-		 VALUES (?, ?, ?, 0, ?, ?)`,
-		username, string(hash), email, now, now,
-	)
+	token, err := a.insertPendingRegistration(username, string(hash), email)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return "", fmt.Errorf("that username is already taken")
-		}
 		return "", fmt.Errorf("register user: %w", err)
-	}
-
-	token, err := a.SendVerification(username)
-	if err != nil {
-		// The account exists but verification failed — remove it so the
-		// person can retry with the same username.
-		a.db.Exec(`DELETE FROM users WHERE username = ?`, username)
-		return "", fmt.Errorf("could not create verification token: %w", err)
 	}
 	return token, nil
 }
@@ -180,6 +204,21 @@ func (a *Auth) IsEmailVerifiedFor(username string) bool {
 	return verified == 1
 }
 
+// EmailForID returns the verified email address for a database user id, or empty.
+func (a *Auth) EmailForID(userID int64) string {
+	var email string
+	a.db.QueryRow(`SELECT COALESCE(email, '') FROM users WHERE id = ? AND email_verified = 1`, userID).Scan(&email)
+	return email
+}
+
+// IsEmailVerifiedForID reports whether the user with the given database id has a
+// verified email.
+func (a *Auth) IsEmailVerifiedForID(userID int64) bool {
+	var verified int
+	a.db.QueryRow(`SELECT email_verified FROM users WHERE id = ?`, userID).Scan(&verified)
+	return verified == 1
+}
+
 // ── Password change ───────────────────────────────────────────────────────────
 
 // ChangePassword verifies the current password then updates the hash.
@@ -187,8 +226,8 @@ func (a *Auth) ChangePassword(username, currentPassword, newPassword string) err
 	if !a.CheckCredentials(username, currentPassword) {
 		return fmt.Errorf("current password is incorrect")
 	}
-	if len(newPassword) < 8 {
-		return fmt.Errorf("new password must be at least 8 characters")
+	if err := ValidatePassword(newPassword); err != nil {
+		return fmt.Errorf("new %s", err.Error())
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
@@ -206,6 +245,139 @@ func (a *Auth) ChangePassword(username, currentPassword, newPassword string) err
 
 // ── Email verification ────────────────────────────────────────────────────────
 
+// insertPendingRegistration stores a registration attempt that has not yet
+// been verified. No users-table row is created at this point.
+func (a *Auth) insertPendingRegistration(username, passwordHash, email string) (string, error) {
+	token := randomHex(32)
+	expires := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+	_, err := a.db.Exec(
+		`INSERT INTO pending_registrations
+		 (email, username, password_hash, verification_token, token_expires_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		email, username, passwordHash, token, expires,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return "", fmt.Errorf("that username is already taken")
+		}
+		return "", fmt.Errorf("store pending registration: %w", err)
+	}
+	return token, nil
+}
+
+// completePendingRegistration promotes a pending registration to a real user
+// row and removes the pending row. It returns errNoPendingRegistration when the
+// token is not found in pending_registrations.
+func (a *Auth) completePendingRegistration(token string) error {
+	var email, username, passwordHash, expiresStr string
+	err := a.db.QueryRow(
+		`SELECT email, username, password_hash, token_expires_at
+		 FROM pending_registrations
+		 WHERE verification_token = ?`,
+		token).Scan(&email, &username, &passwordHash, &expiresStr)
+	if err == sql.ErrNoRows {
+		return errNoPendingRegistration
+	}
+	if err != nil {
+		return fmt.Errorf("lookup pending registration: %w", err)
+	}
+
+	expires, err := time.Parse(time.RFC3339, expiresStr)
+	if err != nil || time.Now().After(expires) {
+		// Token expired - remove the pending row so the username becomes free.
+		a.db.Exec(`DELETE FROM pending_registrations WHERE verification_token = ?`, token)
+		return fmt.Errorf("verification token has expired")
+	}
+
+	// Create the real (verified) user row.
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = a.db.Exec(
+		`INSERT INTO users (username, password_hash, email, email_verified, created_at, updated_at)
+		 VALUES (?, ?, ?, 1, ?, ?)`,
+		username, passwordHash, email, now, now,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return fmt.Errorf("that username is already taken")
+		}
+		return fmt.Errorf("create verified user: %w", err)
+	}
+
+	// Remove the pending row - single-use token.
+	_, err = a.db.Exec(`DELETE FROM pending_registrations WHERE verification_token = ?`, token)
+	return err
+}
+
+// verifyLegacyToken handles verification tokens stored on the users table
+// (pre-migration or setup-created accounts, or email-change tokens). It returns
+// the verified username on success so the caller can promote a pending email.
+func (a *Auth) verifyLegacyToken(token string) (string, error) {
+	var expiresStr, username string
+	err := a.db.QueryRow(
+		`SELECT token_expires_at, username FROM users
+		 WHERE verification_token = ? AND verification_token != ''`,
+		token).Scan(&expiresStr, &username)
+	if err == sql.ErrNoRows {
+		return "", errNoPendingRegistration
+	}
+	if err != nil {
+		return "", fmt.Errorf("lookup verification token: %w", err)
+	}
+	expires, err := time.Parse(time.RFC3339, expiresStr)
+	if err != nil || time.Now().After(expires) {
+		// Token expired - clear it and any stale pending email so the user
+		// can retry the change without the old pending email hanging around.
+		a.db.Exec(`UPDATE users SET verification_token = '', token_expires_at = '', pending_email = '' WHERE username = ?`, username)
+		return "", fmt.Errorf("verification token has expired")
+	}
+	_, err = a.db.Exec(
+		`UPDATE users SET email_verified = 1, verification_token = '', token_expires_at = ''
+		 WHERE verification_token = ?`, token)
+	if err != nil {
+		return "", err
+	}
+	return username, nil
+}
+
+// errNoPendingRegistration is returned by lookups when a token is not present
+// in pending_registrations. It is internal; callers translate it to a user error.
+var errNoPendingRegistration = fmt.Errorf("no pending registration for token")
+
+// usernameTaken reports whether the username is already used by a verified
+// account or by a pending (unverified) registration.
+func (a *Auth) usernameTaken(username string) bool {
+	var n int
+	a.db.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ?`, username).Scan(&n)
+	if n > 0 {
+		return true
+	}
+	a.db.QueryRow(`SELECT COUNT(*) FROM pending_registrations WHERE username = ?`, username).Scan(&n)
+	return n > 0
+}
+
+// RemovePendingRegistrationByUsername deletes a pending registration row
+// for the given username. Best-effort; used when the verification email fails
+// to send so the username can be retried.
+func (a *Auth) RemovePendingRegistrationByUsername(username string) {
+	a.db.Exec(`DELETE FROM pending_registrations WHERE username = ?`, username)
+}
+
+// CleanupExpiredPendingRegistrations removes pending rows whose token has
+// expired. Call it periodically (or at startup) to free the username/email
+// those attempts had reserved.
+func (a *Auth) CleanupExpiredPendingRegistrations() {
+	before := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
+	res, err := a.db.Exec(`DELETE FROM pending_registrations WHERE token_expires_at < ?`, before)
+	if err != nil {
+		log.Printf("[auth] cleanup expired pending registrations: %v", err)
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		log.Printf("[auth] cleaned up %d expired pending registrations", n)
+	}
+}
+
 // GetEmail returns the email address of the given user.
 func (a *Auth) GetEmail(username string) string {
 	var email string
@@ -221,10 +393,76 @@ func (a *Auth) IsEmailVerified(username string) bool {
 }
 
 // SetEmail stores an email address for the given user (resets verification).
+// It overwrites the current email immediately - use RequestEmailChange when you
+// want the old email to stay in place until the new one is verified.
 func (a *Auth) SetEmail(username, email string) error {
 	_, err := a.db.Exec(
-		`UPDATE users SET email = ?, email_verified = 0, verification_token = '', token_expires_at = '' WHERE username = ?`,
+		`UPDATE users SET email = ?, email_verified = 0, verification_token = '', token_expires_at = '', pending_email = '' WHERE username = ?`,
 		email, username)
+	return err
+}
+
+// RequestEmailChange verifies the current password, stores the new email as
+// pending_email, and returns a verification token for it. The real email column
+// is not touched until the verification link is clicked, so a failed verification
+// leaves the original email in place. The caller is responsible for sending the
+// verification email using the returned token.
+func (a *Auth) RequestEmailChange(username, newEmail, password string) (string, error) {
+	if !a.CheckCredentials(username, password) {
+		return "", fmt.Errorf("current password is incorrect")
+	}
+	if !IsValidEmail(newEmail) {
+		return "", fmt.Errorf("please enter a valid email address")
+	}
+
+	// Normalise the "change to the same email" case: just re-send verification.
+	current := a.GetEmail(username)
+	if current == newEmail {
+		token, err := a.SendVerification(username)
+		if err != nil {
+			return "", fmt.Errorf("could not create verification token: %w", err)
+		}
+		return token, nil
+	}
+
+	token, err := a.SendVerification(username)
+	if err != nil {
+		return "", fmt.Errorf("could not create verification token: %w", err)
+	}
+
+	// SendVerification already stored a 24h expiry on the users row. Keep it.
+	_, err = a.db.Exec(
+		`UPDATE users SET pending_email = ? WHERE username = ?`,
+		newEmail, username)
+	if err != nil {
+		return "", fmt.Errorf("store pending email: %w", err)
+	}
+	return token, nil
+}
+
+// PendingEmail returns the pending (not-yet-verified) email for the user, or
+// empty if none is set.
+func (a *Auth) PendingEmail(username string) string {
+	var pe string
+	a.db.QueryRow(`SELECT COALESCE(pending_email, '') FROM users WHERE username = ?`, username).Scan(&pe)
+	return pe
+}
+
+// ConfirmPendingEmail promotes pending_email into the real email column and
+// clears pending_email. It is called after a successful verification when a
+// pending email change is present.
+func (a *Auth) ConfirmPendingEmail(username string) error {
+	var pe string
+	err := a.db.QueryRow(`SELECT pending_email FROM users WHERE username = ?`, username).Scan(&pe)
+	if err != nil {
+		return err
+	}
+	if pe == "" {
+		return nil // nothing to promote
+	}
+	_, err = a.db.Exec(
+		`UPDATE users SET email = ?, pending_email = '', email_verified = 1 WHERE username = ?`,
+		pe, username)
 	return err
 }
 
@@ -246,32 +484,32 @@ func (a *Auth) SendVerification(username string) (string, error) {
 	return token, nil
 }
 
-// VerifyEmail marks the account as verified if the token matches and hasn't
-// expired. Tokens are looked up across all users, so registration links work
-// without a session.
+// VerifyEmail completes a pending registration if the token is valid and
+// unexpired. On success the real user row is created and marked verified; the
+// pending row is then removed. When the verified account has a pending email
+// change, that pending email is promoted into the real email column.
+// Tokens from pending registrations work without a session, so a new registrant
+// can click the link before ever signing in.
 func (a *Auth) VerifyEmail(token string) error {
 	if token == "" {
 		return fmt.Errorf("verification token is empty")
 	}
-	var expiresStr string
-	err := a.db.QueryRow(
-		`SELECT token_expires_at FROM users
-		 WHERE verification_token = ? AND verification_token != ''`,
-		token).Scan(&expiresStr)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("invalid verification token")
+
+	// Try a pending registration first.
+	if err := a.completePendingRegistration(token); err == nil {
+		return nil
+	} else if err != errNoPendingRegistration {
+		return err
 	}
-	if err != nil {
-		return fmt.Errorf("lookup verification token: %w", err)
+
+	// Legacy / email-change path: token on an existing user row.
+	if username, err := a.verifyLegacyToken(token); err != nil {
+		return err
+	} else if username != "" {
+		a.ConfirmPendingEmail(username)
 	}
-	expires, err := time.Parse(time.RFC3339, expiresStr)
-	if err != nil || time.Now().After(expires) {
-		return fmt.Errorf("verification token has expired")
-	}
-	_, err = a.db.Exec(
-		`UPDATE users SET email_verified = 1, verification_token = '', token_expires_at = ''
-		 WHERE verification_token = ?`, token)
-	return err
+
+	return nil
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -382,13 +620,13 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Always public — setup, registration, login, logout, email verify,
-		// landing, static assets
-		if path == "/setup" || path == "/api/setup" ||
+		// Always public - setup, registration, login, logout, email verify,
+		// landing page, static assets
+		if path == "/" || path == "/landing.html" ||
+			path == "/setup" || path == "/api/setup" ||
 			path == "/register" || path == "/api/register" ||
 			path == "/login" || path == "/logout" ||
-			path == "/api/verify-email" ||
-			path == "/landing.html" || isPublicAsset(path) {
+			path == "/api/verify-email" || isPublicAsset(path) {
 			next.ServeHTTP(w, r.WithContext(a.withUser(r)))
 			return
 		}

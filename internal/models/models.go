@@ -46,6 +46,7 @@ type Config struct {
 		Username    string `yaml:"username"`
 		Password    string `yaml:"password"`
 		FromAddress string `yaml:"from_address"`
+		ResendAPIKey string `yaml:"resend_api_key" json:"resend_api_key"`
 	} `yaml:"smtp"`
 }
 

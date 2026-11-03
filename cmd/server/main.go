@@ -46,8 +46,16 @@ func main() {
 	nvdCli  := nvd.NewClient(cfg, db)
 	engine  := audit.NewEngine(cfg, db, nvdCli)
 	authSvc  := auth.New(cfg.Auth, db)
-	sched    := scheduler.New(db, engine, wsHub)
-	emailCli := email.NewClient(cfg.SMTP)
+	emailCfg := email.Config{
+	Host:        cfg.SMTP.Host,
+	Port:        cfg.SMTP.Port,
+	Username:    cfg.SMTP.Username,
+	Password:    cfg.SMTP.Password,
+	FromAddress: cfg.SMTP.FromAddress,
+	ResendAPIKey: cfg.SMTP.ResendAPIKey,
+}
+	emailCli := email.NewClient(emailCfg)
+	sched    := scheduler.New(db, engine, wsHub, emailCli, authSvc)
 	serverURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
 
 	// ── 4. Handlers ───────────────────────────────────────────────────────────

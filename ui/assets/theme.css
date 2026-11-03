@@ -1,7 +1,7 @@
-/* ── Reset ─────────────────────────────────────────────────────── */
+/* - Reset - */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-/* ── Tokens ───────────────────────────────────────────────────── */
+/* - Tokens - */
 :root{
   --cocoa:    #200f0a;
   --plum:     #2b2538;
@@ -34,11 +34,11 @@ body{
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 :focus-visible{outline:2px solid var(--mint);outline-offset:3px;border-radius:4px}
 
-/* ── Layout ───────────────────────────────────────────────────── */
+/* - Layout - */
 .wrap{max-width:1200px;margin:0 auto;padding:0 48px}
 @media(max-width:600px){.wrap{padding:0 24px}}
 
-/* ── Shared animations ────────────────────────────────────────── */
+/* - Shared animations - */
 @keyframes fadeDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeUp  {from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)}}
 @keyframes wordClip{to{opacity:1;transform:translateY(0)}}
@@ -49,7 +49,7 @@ body{
 @keyframes radarSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes wsPulse{0%,100%{opacity:1}50%{opacity:0.3}}
 
-/* ── Scroll reveal ────────────────────────────────────────────── */
+/* - Scroll reveal - */
 .reveal{
   opacity:0;transform:translateY(28px);
   transition:opacity 0.7s var(--ease),transform 0.7s var(--ease);
@@ -58,7 +58,7 @@ body{
 .rd1{transition-delay:0.05s}.rd2{transition-delay:0.13s}
 .rd3{transition-delay:0.21s}.rd4{transition-delay:0.29s}
 
-/* ── Nav ──────────────────────────────────────────────────────── */
+/* - Nav - */
 nav{
   position:sticky;top:0;z-index:100;
   background:var(--cocoa);
@@ -75,7 +75,7 @@ nav{
 .nav-logo:hover .nav-mark{border-color:var(--mint);background:rgba(162,246,245,0.08)}
 .nav-name{font-size:14px;font-weight:500;letter-spacing:0.04em}
 
-/* ── Nav links ────────────────────────────────────────────────── */
+/* - Nav links - */
 .nav-links{display:flex;gap:32px}
 .nav-links a{
   font-size:14px;font-weight:500;color:var(--stone);
@@ -84,7 +84,7 @@ nav{
 .nav-links a:hover{color:var(--cream)}
 @media(max-width:680px){.nav-links{display:none}}
 
-/* ── Buttons ──────────────────────────────────────────────────── */
+/* - Buttons - */
 .btn{
   font-family:var(--font);font-size:13px;font-weight:500;
   border-radius:9999px;padding:9px 20px;cursor:pointer;
@@ -127,7 +127,7 @@ nav{
 }
 .btn-danger:hover{background:rgba(248,113,113,0.08)}
 
-/* ── Inputs ───────────────────────────────────────────────────── */
+/* - Inputs - */
 .input{
   font-family:var(--font);font-size:13px;
   color:var(--cream);background:var(--cocoa);
@@ -139,10 +139,10 @@ nav{
 .input::placeholder{color:var(--stone);opacity:0.7}
 .input:focus{border-color:var(--mint)}
 
-/* ── View switching ───────────────────────────────────────────── */
+/* - View switching - */
 .view{display:block}.view.hidden{display:none}
 
-/* ── WS status pill ───────────────────────────────────────────── */
+/* - WS status pill - */
 .ws-pill{
   display:flex;align-items:center;gap:6px;
   border:1px solid rgba(227,204,192,0.15);border-radius:9999px;
@@ -163,7 +163,7 @@ nav{
   animation:wsPulse 1.2s ease-in-out infinite;
 }
 
-/* ── Cards ────────────────────────────────────────────────────── */
+/* - Cards - */
 .card{
   background:var(--plum);
   border:1px solid rgba(227,204,192,0.12);
@@ -179,7 +179,7 @@ nav{
 .card-sub{font-size:12px;color:var(--stone);margin-top:3px}
 .card-body{padding:18px 24px}
 
-/* ── Step pill ────────────────────────────────────────────────── */
+/* - Step pill - */
 .step-pill{
   display:inline-flex;align-items:center;overflow:hidden;
   border:1px solid rgba(227,204,192,0.2);border-radius:9999px;
@@ -198,7 +198,7 @@ nav{
   letter-spacing:0.16em;text-transform:uppercase;color:var(--stone);
 }
 
-/* ── Section header ───────────────────────────────────────────── */
+/* - Section header - */
 .section-head{
   display:flex;align-items:flex-start;justify-content:space-between;
   padding-bottom:18px;margin-bottom:20px;
@@ -210,7 +210,7 @@ nav{
 }
 .section-sub{font-size:13px;color:var(--stone);margin-top:4px}
 
-/* ── Progress ─────────────────────────────────────────────────── */
+/* - Progress - */
 .progress-wrap{margin-bottom:18px}
 .progress-meta{
   display:flex;justify-content:space-between;
@@ -220,7 +220,7 @@ nav{
 .progress-track{height:2px;background:rgba(227,204,192,0.12);border-radius:99px;overflow:hidden}
 .progress-fill{height:100%;background:var(--mint);border-radius:99px;width:0;transition:width 0.4s var(--ease)}
 
-/* ── Live feed ────────────────────────────────────────────────── */
+/* - Live feed - */
 .feed-label{
   font-size:10px;font-weight:500;letter-spacing:0.14em;
   text-transform:uppercase;color:var(--stone);margin-bottom:8px;
@@ -246,7 +246,7 @@ nav{
 .feed-ver {color:var(--stone)}
 .feed-cve {color:var(--red);margin-left:auto;flex-shrink:0}
 
-/* ── Score display ────────────────────────────────────────────── */
+/* - Score display - */
 .score-panel{
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:28px 20px;
@@ -267,7 +267,7 @@ nav{
 .ring-high    {border-color:var(--orange)!important}
 .ring-critical{border-color:var(--red)!important}
 
-/* ── CVE severity grid ────────────────────────────────────────── */
+/* - CVE severity grid - */
 .cve-grid{display:grid;grid-template-columns:repeat(4,1fr)}
 .cve-cell{
   padding:18px 0;text-align:center;
@@ -281,7 +281,7 @@ nav{
 .sev-medium  {color:var(--amber)}
 .sev-low     {color:var(--green)}
 
-/* ── Result header ────────────────────────────────────────────── */
+/* - Result header - */
 .result-row{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 22px;
@@ -290,7 +290,7 @@ nav{
 .result-ip  {font-size:15px;font-weight:500;color:var(--cream);font-family:var(--mono)}
 .result-host{font-size:11px;color:var(--stone);margin-top:2px}
 
-/* ── Table ────────────────────────────────────────────────────── */
+/* - Table - */
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead tr{background:rgba(0,0,0,0.2)}
@@ -326,7 +326,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .cve-id{color:var(--mint)}
 .fix-text{font-size:12px;color:var(--stone);line-height:1.55;max-width:240px}
 
-/* ── Device cards ─────────────────────────────────────────────── */
+/* - Device cards - */
 .device-grid-wrap{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
@@ -343,14 +343,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .device-host{font-size:11px;color:var(--stone);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ── Count badge ──────────────────────────────────────────────── */
+/* - Count badge - */
 .count-badge{
   display:inline-flex;align-items:center;
   border:1px solid rgba(227,204,192,0.15);border-radius:9999px;
   padding:3px 12px;font-size:11px;font-weight:500;color:var(--stone);
 }
 
-/* ── Toast ────────────────────────────────────────────────────── */
+/* - Toast - */
 #toast-container{
   position:fixed;bottom:24px;right:24px;
   display:flex;flex-direction:column;gap:8px;z-index:200;

@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sentry — Network Security for Kenyan Businesses</title>
+<title>Sentry - Network Security for Kenyan Businesses</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/theme.css"/>
 <style>
-/* ── Landing page: nav fade-in animation (overrides theme.css default) */
+/* - Landing page: nav fade-in animation (overrides theme.css default) */
 nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .nav-ctas{display:flex;align-items:center;gap:10px}
 
-/* ── Hero ────────────────────────────────────────────────────────── */
+/* - Hero - */
 .hero{padding:100px 0 80px;border-bottom:1px solid rgba(227,204,192,0.12)}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
 @media(max-width:800px){.hero-grid{grid-template-columns:1fr;gap:48px}.hero-right{display:none}}
@@ -66,7 +66,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 }
 .trust-pill-dot{width:5px;height:5px;border-radius:50%;background:var(--mint);flex-shrink:0}
 
-/* ── Radar card ─────────────────────────────────────────────────── */
+/* - Radar card - */
 .hero-right{
   display:flex;align-items:center;justify-content:center;
   opacity:0;animation:fadeUp 0.9s var(--ease) 0.7s forwards;
@@ -99,7 +99,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .rbadge.vuln{background:rgba(133,141,249,0.15);color:var(--lavender)}
 .rbadge.clean{background:rgba(162,246,245,0.1);color:var(--mint)}
 
-/* ── Scan ticker ─────────────────────────────────────────────────── */
+/* - Scan ticker - */
 .ticker{
   background:var(--plum);border-bottom:1px solid rgba(227,204,192,0.1);
   padding:12px 0;
@@ -123,7 +123,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
   flex-shrink:0;animation:mintGlow 2s ease-in-out infinite;
 }
 
-/* ── Stats band ──────────────────────────────────────────────────── */
+/* - Stats band - */
 .stats-band{padding:80px 0;border-bottom:1px solid rgba(227,204,192,0.1)}
 .stats-grid{
   display:grid;grid-template-columns:repeat(3,1fr);
@@ -142,7 +142,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .stat-bar-fill{height:100%;background:var(--mint);width:0;border-radius:99px;transition:width 1.4s var(--ease)}
 .stat-label{font-size:14px;font-weight:300;color:var(--stone);line-height:1.6}
 
-/* ── Section scaffold ────────────────────────────────────────────── */
+/* - Section scaffold - */
 .section{padding:96px 0;border-bottom:1px solid rgba(227,204,192,0.1)}
 .section:last-of-type{border-bottom:none}
 .section-overline{
@@ -164,7 +164,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
   max-width:560px;line-height:1.7;margin-bottom:56px;
 }
 
-/* ── Feature cards ───────────────────────────────────────────────── */
+/* - Feature cards - */
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
   background:rgba(227,204,192,0.08);border:1px solid rgba(227,204,192,0.1);
   border-radius:8px;overflow:hidden}
@@ -183,7 +183,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .feat-title{font-size:17px;font-weight:500;color:var(--cream);margin-bottom:10px}
 .feat-body{font-size:14px;font-weight:300;color:var(--stone);line-height:1.7}
 
-/* ── How it works steps ──────────────────────────────────────────── */
+/* - How it works steps - */
 .steps-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
   background:rgba(227,204,192,0.08);border:1px solid rgba(227,204,192,0.1);
   border-radius:8px;overflow:hidden;margin-bottom:56px}
@@ -204,7 +204,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 }
 @media(max-width:780px){.step-connector{display:none}}
 
-/* ── Reports mockup ──────────────────────────────────────────────── */
+/* - Reports mockup - */
 .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
 @media(max-width:800px){.report-grid{grid-template-columns:1fr}}
 .report-mockup{
@@ -256,7 +256,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 .rep-feat-title{font-size:15px;font-weight:500;color:var(--cream);margin-bottom:4px}
 .rep-feat-body{font-size:13px;font-weight:300;color:var(--stone);line-height:1.6}
 
-/* ── Final CTA ───────────────────────────────────────────────────── */
+/* - Final CTA - */
 .cta-band{
   padding:96px 0;
   text-align:center;
@@ -280,7 +280,7 @@ nav{opacity:0;animation:fadeDown 0.7s var(--ease) 0.05s forwards}
 }
 .cta-buttons{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
 
-/* ── Footer ──────────────────────────────────────────────────────── */
+/* - Footer - */
 footer{
   border-top:1px solid rgba(227,204,192,0.1);
   padding:32px 0;
@@ -297,9 +297,9 @@ footer{
 </style>
 </head>
 <body>
-<h1 class="sr-only">Sentry — Network Security Auditing for Kenyan Businesses</h1>
+<h1 class="sr-only">Sentry - Network Security Auditing for Kenyan Businesses</h1>
 
-<!-- ── Nav ──────────────────────────────────────────────────────── -->
+<!-- - Nav - -->
 <nav role="navigation" aria-label="Main navigation">
   <div class="wrap">
     <div class="nav-inner">
@@ -324,7 +324,7 @@ footer{
   </div>
 </nav>
 
-<!-- ── Hero ─────────────────────────────────────────────────────── -->
+<!-- - Hero - -->
 <section class="hero" aria-labelledby="hero-heading">
   <div class="wrap">
     <div class="hero-grid">
@@ -354,7 +354,7 @@ footer{
         </h2>
         <p class="hero-sub">
           Sentry scans your network, identifies vulnerable services, and gives you
-          <strong>plain-English advice</strong> — so any business owner can act on it.
+          <strong>plain-English advice</strong> - so any business owner can act on it.
           No IT degree required.
         </p>
         <div class="hero-ctas">
@@ -405,11 +405,11 @@ footer{
             <circle cx="150" cy="150" r="8" fill="none" stroke="#a2f6f5" stroke-width="1" opacity="0.3"/>
           </svg>
           <div class="radar-feed">
-            <div class="radar-row"><span class="rport">:22</span><span class="rsvc">SSH — OpenSSH 7.4</span><span class="rbadge vuln">1 CVE</span></div>
-            <div class="radar-row"><span class="rport">:80</span><span class="rsvc">HTTP — nginx 1.18.0</span><span class="rbadge vuln">3 CVEs</span></div>
-            <div class="radar-row"><span class="rport">:443</span><span class="rsvc">HTTPS — nginx 1.18.0</span><span class="rbadge clean">Clean</span></div>
+            <div class="radar-row"><span class="rport">:22</span><span class="rsvc">SSH - OpenSSH 7.4</span><span class="rbadge vuln">1 CVE</span></div>
+            <div class="radar-row"><span class="rport">:80</span><span class="rsvc">HTTP - nginx 1.18.0</span><span class="rbadge vuln">3 CVEs</span></div>
+            <div class="radar-row"><span class="rport">:443</span><span class="rsvc">HTTPS - nginx 1.18.0</span><span class="rbadge clean">Clean</span></div>
             <div class="radar-row"><span class="rport">:3306</span><span class="rsvc">MySQL 5.7.39</span><span class="rbadge vuln">2 CVEs</span></div>
-            <div class="radar-row"><span class="rport">:5900</span><span class="rsvc">VNC — Unknown</span><span class="rbadge clean">Clean</span></div>
+            <div class="radar-row"><span class="rport">:5900</span><span class="rsvc">VNC - Unknown</span><span class="rbadge clean">Clean</span></div>
           </div>
         </div>
       </div>
@@ -417,7 +417,7 @@ footer{
   </div>
 </section>
 
-<!-- ── Ticker ────────────────────────────────────────────────────── -->
+<!-- - Ticker - -->
 <div class="ticker" role="status" aria-live="polite">
   <div class="wrap">
     <div class="ticker-inner">
@@ -429,7 +429,7 @@ footer{
   </div>
 </div>
 
-<!-- ── Stats ─────────────────────────────────────────────────────── -->
+<!-- - Stats - -->
 <section class="stats-band">
   <div class="wrap">
     <div class="stats-grid">
@@ -452,7 +452,7 @@ footer{
   </div>
 </section>
 
-<!-- ── Features ──────────────────────────────────────────────────── -->
+<!-- - Features - -->
 <section class="section" id="features" aria-labelledby="feat-heading">
   <div class="wrap">
     <p class="section-overline reveal">Core capabilities</p>
@@ -473,7 +473,7 @@ footer{
           </svg>
         </div>
         <p class="feat-title">Network Discovery</p>
-        <p class="feat-body">Automatically detects your subnet and sweeps every IP address, returning every active device — computers, printers, routers, and IoT devices — with hostnames resolved.</p>
+        <p class="feat-body">Automatically detects your subnet and sweeps every IP address, returning every active device - computers, printers, routers, and IoT devices - with hostnames resolved.</p>
       </div>
       <div class="feat-card reveal rd2">
         <div class="feat-icon" aria-hidden="true">
@@ -485,7 +485,7 @@ footer{
           </svg>
         </div>
         <p class="feat-title">Banner Grabbing</p>
-        <p class="feat-body">Connects to each open port and reads the service banner to extract the exact product name and version number — turning "port 80 open" into "nginx 1.18.0".</p>
+        <p class="feat-body">Connects to each open port and reads the service banner to extract the exact product name and version number - turning "port 80 open" into "nginx 1.18.0".</p>
       </div>
       <div class="feat-card reveal rd3">
         <div class="feat-icon" aria-hidden="true">
@@ -506,7 +506,7 @@ footer{
           </svg>
         </div>
         <p class="feat-title">Risk Scoring</p>
-        <p class="feat-body">Translates raw CVE data into a single 0–100 security score using a logarithmic algorithm. Critical vulnerabilities impact more than minor ones, with diminishing returns to avoid panic scoring.</p>
+        <p class="feat-body">Translates raw CVE data into a single 0-100 security score using a logarithmic algorithm. Critical vulnerabilities impact more than minor ones, with diminishing returns to avoid panic scoring.</p>
       </div>
       <div class="feat-card reveal rd2">
         <div class="feat-icon" aria-hidden="true">
@@ -518,7 +518,7 @@ footer{
           </svg>
         </div>
         <p class="feat-title">PDF Reports</p>
-        <p class="feat-body">Generates a downloadable PDF with plain-English explanations any business owner can act on — score, findings, and prioritised fix advice — in the EAT timezone.</p>
+        <p class="feat-body">Generates a downloadable PDF with plain-English explanations any business owner can act on - score, findings, and prioritised fix advice - in the EAT timezone.</p>
       </div>
       <div class="feat-card reveal rd3">
         <div class="feat-icon" aria-hidden="true">
@@ -527,13 +527,13 @@ footer{
           </svg>
         </div>
         <p class="feat-title">Remediation Advice</p>
-        <p class="feat-body">Every CVE comes with a specific, actionable fix — not just "update your software" but exactly which version to install and what setting to change, with 30+ curated entries.</p>
+        <p class="feat-body">Every CVE comes with a specific, actionable fix - not just "update your software" but exactly which version to install and what setting to change, with 30+ curated entries.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── How it works ───────────────────────────────────────────────── -->
+<!-- - How it works - -->
 <section class="section" id="how-it-works" aria-labelledby="how-heading"
   style="background:rgba(43,37,56,0.25)">
   <div class="wrap">
@@ -549,13 +549,13 @@ footer{
       <div class="step-card reveal rd1">
         <span class="step-num">Step 01</span>
         <p class="step-title">Detect your network</p>
-        <p class="step-body">Sentry reads your machine's network interface and automatically calculates the correct subnet — no manual IP configuration required.</p>
+        <p class="step-body">Sentry reads your machine's network interface and automatically calculates the correct subnet - no manual IP configuration required.</p>
         <div class="step-connector" aria-hidden="true"></div>
       </div>
       <div class="step-card reveal rd2">
         <span class="step-num">Step 02</span>
         <p class="step-title">Discover devices</p>
-        <p class="step-body">A concurrent worker pool sweeps every IP in the subnet, probing common ports to find active hosts — routers, servers, printers, cameras — and resolves their hostnames.</p>
+        <p class="step-body">A concurrent worker pool sweeps every IP in the subnet, probing common ports to find active hosts - routers, servers, printers, cameras - and resolves their hostnames.</p>
         <div class="step-connector" aria-hidden="true"></div>
       </div>
       <div class="step-card reveal rd3">
@@ -567,7 +567,7 @@ footer{
       <div class="step-card reveal rd4">
         <span class="step-num">Step 04</span>
         <p class="step-title">Download your report</p>
-        <p class="step-body">Receive a branded PDF with your security score, open services, CVE findings, and plain-English recommendations — ready to share with your IT person or print for a client.</p>
+        <p class="step-body">Receive a branded PDF with your security score, open services, CVE findings, and plain-English recommendations - ready to share with your IT person or print for a client.</p>
       </div>
     </div>
 
@@ -582,7 +582,7 @@ footer{
   </div>
 </section>
 
-<!-- ── Reports ────────────────────────────────────────────────────── -->
+<!-- - Reports - -->
 <section class="section" id="reports" aria-labelledby="rep-heading">
   <div class="wrap">
     <div class="report-grid">
@@ -651,7 +651,7 @@ footer{
             </div>
             <div>
               <p class="rep-feat-title">Score with context</p>
-              <p class="rep-feat-body">Your security score comes with a full paragraph explaining what it means for your business — not just a number.</p>
+              <p class="rep-feat-body">Your security score comes with a full paragraph explaining what it means for your business - not just a number.</p>
             </div>
           </div>
           <div class="rep-feat">
@@ -664,7 +664,7 @@ footer{
             </div>
             <div>
               <p class="rep-feat-title">Prioritised action list</p>
-              <p class="rep-feat-body">Every vulnerable service gets a numbered action with a specific fix — which version to install, which setting to change.</p>
+              <p class="rep-feat-body">Every vulnerable service gets a numbered action with a specific fix - which version to install, which setting to change.</p>
             </div>
           </div>
           <div class="rep-feat">
@@ -676,7 +676,7 @@ footer{
             </div>
             <div>
               <p class="rep-feat-title">EAT timestamps</p>
-              <p class="rep-feat-body">Reports are timestamped in East Africa Time — no UTC conversions. Dates and times are immediately meaningful to your team.</p>
+              <p class="rep-feat-body">Reports are timestamped in East Africa Time - no UTC conversions. Dates and times are immediately meaningful to your team.</p>
             </div>
           </div>
         </div>
@@ -693,12 +693,12 @@ footer{
   </div>
 </section>
 
-<!-- ── Final CTA ──────────────────────────────────────────────────── -->
+<!-- - Final CTA - -->
 <div class="cta-band reveal">
   <div class="wrap">
     <div class="cta-badge" aria-hidden="true">
       <span style="width:5px;height:5px;border-radius:50%;background:var(--mint)"></span>
-      Free — no signup required
+      Free - no signup required
     </div>
     <h2 class="cta-heading">
       Start protecting your<br><span class="mint">network today</span>
@@ -718,7 +718,7 @@ footer{
   </div>
 </div>
 
-<!-- ── Contact ────────────────────────────────────────────────────── -->
+<!-- - Contact - -->
 <section class="section" id="contact" style="border-bottom:none;padding:80px 0" aria-labelledby="contact-heading">
   <div class="wrap">
     <div style="max-width:600px;margin:0 auto;text-align:center">
@@ -825,7 +825,7 @@ footer{
   </div>
 </section>
 
-<!-- ── Footer ─────────────────────────────────────────────────────── -->
+<!-- - Footer - -->
 <footer>
   <div class="wrap">
     <div class="footer-inner">
@@ -848,7 +848,7 @@ footer{
 </footer>
 
 <script>
-/* ── Scroll reveal ──────────────────────────────────────────────── */
+/* - Scroll reveal - */
 (function(){
   const els = document.querySelectorAll('.reveal');
   if(!('IntersectionObserver' in window)){els.forEach(e=>e.classList.add('in'));return}
@@ -860,7 +860,7 @@ footer{
   els.forEach(e=>io.observe(e));
 })();
 
-/* ── Scan ticker ────────────────────────────────────────────────── */
+/* - Scan ticker - */
 (function(){
   const fill = document.getElementById('t-fill');
   const msg  = document.getElementById('t-msg');
@@ -890,7 +890,7 @@ footer{
   setTimeout(tick,500);
 })();
 
-/* ── Counter animation ──────────────────────────────────────────── */
+/* - Counter animation - */
 (function(){
   function countUp(el,target,duration){
     const unit=el.querySelector('.stat-unit');
@@ -917,7 +917,7 @@ footer{
   ['s1','s2','s3'].forEach(id=>{const el=document.getElementById(id);if(el)io.observe(el)});
 })();
 
-/* ── Demo feed (How it works section) ──────────────────────────── */
+/* - Demo feed (How it works section) - */
 (function(){
   const feed=document.getElementById('demo-feed');
   if(!feed)return;

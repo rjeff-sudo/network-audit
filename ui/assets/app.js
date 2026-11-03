@@ -5,7 +5,7 @@ const state = {
   scanning: false, lastScanID: null,
 };
 
-/* ── WebSocket ──────────────────────────────────────────────────── */
+/* - WebSocket - */
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   state.ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -45,7 +45,7 @@ function setWSStatus(connected) {
   }
 }
 
-/* ── Discovery ──────────────────────────────────────────────────── */
+/* - Discovery - */
 async function detectSubnet() {
   const btn = document.getElementById('btn-detect');
   btn.disabled = true; btn.textContent = 'Detecting...';
@@ -125,7 +125,7 @@ function onDevicesFound(devices) {
         `<div class="device-host">${escHtml(d.hostname || 'Unknown host')}</div>`;
       const pick = () => {
         document.getElementById('audit-ip').value = d.ip;
-        toast('IP set — click Start audit', 'info');
+        toast('IP set - click Start audit', 'info');
       };
       card.addEventListener('click', pick);
       card.addEventListener('keydown', e => e.key === 'Enter' && pick());
@@ -135,7 +135,7 @@ function onDevicesFound(devices) {
   grid.classList.remove('hidden');
 }
 
-/* ── Audit ──────────────────────────────────────────────────────── */
+/* - Audit - */
 async function startAudit() {
   const ip = document.getElementById('audit-ip').value.trim();
   if (!ip)            { toast('Enter an IP address', 'error'); return; }
@@ -195,7 +195,7 @@ function onScanComplete(result) {
   hide('btn-cancel');
   renderResults(result);
   const ok = result.risk_score >= 70;
-  toast('Score: ' + result.risk_score + '/100 — ' + result.summary.label,
+  toast('Score: ' + result.risk_score + '/100 - ' + result.summary.label,
     ok ? 'success' : 'error');
 }
 
@@ -234,7 +234,7 @@ function setProgress(pct, msg) {
   document.getElementById('progress-msg').textContent  = msg;
 }
 
-/* ── Results ────────────────────────────────────────────────────── */
+/* - Results - */
 function renderResults(result) {
   show('results-wrap');
 
@@ -305,17 +305,17 @@ function renderPortTable(ports) {
        <td style="font-size:11px;color:var(--stone);max-width:180px">
          ${topCVE
            ? escHtml(topCVE.description.slice(0,90)) + '…'
-           : '<span style="color:var(--stone)">—</span>'}
+           : '<span style="color:var(--stone)">-</span>'}
        </td>
        <td>${topCVE && topCVE.fix
          ? `<p class="fix-text">${escHtml(topCVE.fix)}</p>`
-         : '<span style="color:var(--stone)">—</span>'}
+         : '<span style="color:var(--stone)">-</span>'}
        </td>`;
     tbody.appendChild(tr);
   });
 }
 
-/* ── History ────────────────────────────────────────────────────── */
+/* - History - */
 const historyState = { offset: 0, limit: 20, hasMore: false };
 
 async function loadHistory() {
@@ -339,7 +339,7 @@ async function loadHistory() {
       tbody.innerHTML =
         `<tr><td colspan="8"
           style="text-align:center;color:var(--stone);padding:48px 0">
-          No scans yet — run your first audit from the Scan tab.
+          No scans yet - run your first audit from the Scan tab.
         </td></tr>`;
       return;
     }
@@ -400,7 +400,7 @@ function appendHistoryRow(row) {
      <td style="font-family:var(--mono);color:var(--mint);font-size:12px">
        ${escHtml(row.ip)}
      </td>
-     <td style="font-size:12px;color:var(--stone)">${escHtml(row.hostname || '—')}</td>
+     <td style="font-size:12px;color:var(--stone)">${escHtml(row.hostname || '-')}</td>
      <td>
        <span style="font-size:20px;font-weight:300;color:${scoreColor}">${row.risk_score}</span>
        <span style="font-size:11px;color:var(--stone);margin-left:4px">${scoreLabelText(cls)}</span>
@@ -443,7 +443,7 @@ async function deleteHistory(id, btn) {
 function reAudit(ip) {
   document.getElementById('audit-ip').value = ip;
   showView('dashboard');
-  toast('IP set — click Start audit', 'info');
+  toast('IP set - click Start audit', 'info');
 }
 
 async function downloadReport() {
@@ -451,7 +451,7 @@ async function downloadReport() {
   window.open(`/api/report/${state.lastScanID}`, '_blank');
 }
 
-/* ── View switching ─────────────────────────────────────────────── */
+/* - View switching - */
 function showView(name) {
   // Update URL hash without triggering hashchange
   if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
@@ -482,7 +482,7 @@ function clearResults() {
   state.lastScanID = null;
 }
 
-/* ── Toast ──────────────────────────────────────────────────────── */
+/* - Toast - */
 function toast(message, type = 'info') {
   const el = document.createElement('div');
   el.className = 'toast toast-' + type;
@@ -492,7 +492,7 @@ function toast(message, type = 'info') {
   setTimeout(() => el.remove(), 4000);
 }
 
-/* ── Helpers ────────────────────────────────────────────────────── */
+/* - Helpers - */
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
@@ -521,7 +521,7 @@ function scoreLabelText(cls) {
 
 function portCountStr(n) { return n === 0 ? 'no' : String(n); }
 
-/* ── Schedules ──────────────────────────────────────────────────── */
+/* - Schedules - */
 async function loadSchedules() {
   const grid  = document.getElementById('sched-grid');
   const empty = document.getElementById('sched-empty');
@@ -553,6 +553,11 @@ function buildSchedCard(sc) {
     : 'Never';
   const nextRun = new Date(sc.next_run).toLocaleString();
   const interval = intervalLabel(sc.interval_hrs);
+  const emailReport = sc.email_report !== undefined ? sc.email_report : false;
+  const emailSent = sc.email_sent;
+  const emailSentAt = sc.email_sent_at
+    ? 'Email sent ' + new Date(sc.email_sent_at).toLocaleString()
+    : '';
 
   card.innerHTML = `
     <div class="sched-head">
@@ -568,6 +573,11 @@ function buildSchedCard(sc) {
       <span><b>Interval</b>${escHtml(interval)}</span>
       <span><b>Last run</b>${escHtml(lastRun)}</span>
       <span><b>Next run</b>${escHtml(nextRun)}</span>
+      ${emailReport ? `<span style="color:var(--mint)">
+        <b>Report email</b>${emailSentAt || 'Sending on next run'}
+      </span>` : `<span style="color:var(--stone)">
+        <b>Report email</b>off
+      </span>`}
     </div>
     <div class="sched-actions">
       <button onclick="runSchedNow(${sc.id})"
@@ -577,6 +587,10 @@ function buildSchedCard(sc) {
       <button onclick="toggleSched(${sc.id}, ${!sc.enabled})"
         class="btn btn-ghost" style="font-size:11px;padding:5px 14px">
         ${sc.enabled ? 'Pause' : 'Resume'}
+      </button>
+      <button onclick="toggleEmailReport(${sc.id}, ${!emailReport})"
+        class="btn btn-ghost" style="font-size:11px;padding:5px 14px">
+        ${emailReport ? 'Disable report email' : 'Email report'}
       </button>
       <button onclick="deleteSched(${sc.id})"
         class="btn btn-danger" style="font-size:11px;padding:5px 14px">
@@ -590,6 +604,7 @@ async function createSchedule() {
   const ip       = document.getElementById('sched-ip').value.trim();
   const label    = document.getElementById('sched-label').value.trim();
   const interval = parseInt(document.getElementById('sched-interval').value);
+  const emailReport = document.getElementById('sched-email-report').checked;
 
   if (!ip)            { toast('Enter an IP address', 'error'); return; }
   if (!isValidIP(ip)) { toast('Enter a valid IPv4 address', 'error'); return; }
@@ -598,14 +613,14 @@ async function createSchedule() {
     const res  = await fetch('/api/schedules', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ ip, label, interval_hrs: interval }),
+      body: JSON.stringify({ ip, label, interval_hrs: interval, email_report: emailReport }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
     document.getElementById('sched-ip').value    = '';
     document.getElementById('sched-label').value = '';
-    toast('Schedule created — first scan in ' + intervalLabel(interval), 'success');
+    toast('Schedule created - first scan in ' + intervalLabel(interval), 'success');
     loadSchedules();
   } catch (err) {
     toast('Could not create schedule: ' + err.message, 'error');
@@ -646,9 +661,53 @@ async function runSchedNow(id) {
     const res  = await fetch(`/api/schedules/${id}/run`, { method: 'POST' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    toast('Scan started — watch the live feed on the Scan tab', 'info');
+    toast('Scan started - watch the live feed on the Scan tab', 'info');
   } catch (err) {
     toast('Could not start scan: ' + err.message, 'error');
+  }
+}
+
+async function toggleEmailReport(id, enable) {
+  try {
+    const res  = await fetch(`/api/schedules/${id}/email-report`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email_report: enable }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast(enable ? 'Report email enabled for next run' : 'Report email disabled', 'success');
+    loadSchedules();
+  } catch (err) {
+    toast('Could not update report email: ' + err.message, 'error');
+  }
+}
+
+async function changeEmail() {
+  const email = document.getElementById('settings-change-email').value.trim();
+  const pw    = document.getElementById('settings-change-email-pw').value;
+
+  if (!email) { toast('Enter the new email address', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Invalid email address', 'error'); return; }
+  if (!pw)    { toast('Enter your current password', 'error'); return; }
+
+  try {
+    const res  = await fetch('/api/settings/change-email', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password: pw }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    toast(data.message || 'Email change requested - check your inbox', 'success');
+    if (data.verify_link) {
+      toast('Click here to verify: ' + data.verify_link, 'info');
+    }
+    document.getElementById('settings-change-email').value = '';
+    document.getElementById('settings-change-email-pw').value = '';
+    loadEmailStatus();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
   }
 }
 
@@ -661,7 +720,7 @@ function intervalLabel(hrs) {
   return `Every ${hrs} hours`;
 }
 
-/* ── Settings ──────────────────────────────────────────────────── */
+/* - Settings - */
 async function changePassword() {
   const current = document.getElementById('settings-current-pw').value;
   const newPw   = document.getElementById('settings-new-pw').value;
@@ -672,6 +731,15 @@ async function changePassword() {
   }
   if (newPw.length < 8) {
     toast('New password must be at least 8 characters', 'error'); return;
+  }
+  if (!/[A-Za-z]/.test(newPw)) {
+    toast('New password must contain at least one letter', 'error'); return;
+  }
+  if (!/[0-9]/.test(newPw)) {
+    toast('New password must contain at least one number', 'error'); return;
+  }
+  if (!/[^A-Za-z0-9]/.test(newPw)) {
+    toast('New password must contain at least one special character or symbol', 'error'); return;
   }
   if (newPw !== confirm) {
     toast('New passwords do not match', 'error'); return;
@@ -694,14 +762,14 @@ async function changePassword() {
   }
 }
 
-/* ── Email verification (Settings) ──────────────────────────────── */
+/* - Email verification (Settings) - */
 async function loadEmailStatus() {
   const wrap = document.getElementById('email-status-wrap');
   if (!wrap) return;
   try {
     const res  = await fetch('/api/settings/email-status');
     if (res.status === 401) {
-      wrap.innerHTML = `<p style="font-size:13px;color:var(--red)">Session expired — <a href="/login" style="color:var(--mint)">log in again</a></p>`;
+      wrap.innerHTML = `<p style="font-size:13px;color:var(--red)">Session expired - <a href="/login" style="color:var(--mint)">log in again</a></p>`;
       return;
     }
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
@@ -736,7 +804,7 @@ async function loadEmailStatus() {
         <p style="font-size:12px;color:#fbbf24;margin-bottom:12px">Email not verified</p>
         ${data.smtp_configured
           ? `<button onclick="resendVerification()" class="btn btn-mint" style="font-size:12px;padding:8px 16px">Resend verification email</button>`
-          : `<p style="font-size:12px;color:var(--stone)">SMTP is not configured — ask your admin to set it up in config.yaml</p>`
+          : `<p style="font-size:12px;color:var(--stone)">SMTP is not configured - ask your admin to set it up in config.yaml</p>`
         }`;
     }
     wrap.innerHTML = html;
@@ -759,7 +827,7 @@ async function saveEmail() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    toast('Email saved — check your inbox for verification', 'success');
+    toast('Email saved - check your inbox for verification', 'success');
     loadEmailStatus();
   } catch (err) {
     toast('Error: ' + err.message, 'error');
@@ -777,7 +845,7 @@ async function resendVerification() {
   }
 }
 
-/* ── Network Topology Map ───────────────────────────────────────── */
+/* - Network Topology Map - */
 async function loadTopology() {
   const svg = document.getElementById('topo-svg');
   if (!svg) return;
@@ -785,7 +853,7 @@ async function loadTopology() {
 
   try {
     const res  = await fetch('/api/topology');
-    if (res.status === 401) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Session expired — <a href="/login" fill="#a2f6f5">log in</a></text>'; return; }
+    if (res.status === 401) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Session expired - <a href="/login" fill="#a2f6f5">log in</a></text>'; return; }
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     renderTopology(svg, data.devices, data.gateway);
@@ -910,7 +978,7 @@ function riskColor(score) {
   return '#f87171';
 }
 
-/* ── Vulnerability Trend Tracker ────────────────────────────────── */
+/* - Vulnerability Trend Tracker - */
 async function loadTrends() {
   try {
     const [devicesRes, pointsRes] = await Promise.all([
@@ -1059,7 +1127,7 @@ async function loadDeviceTrend(ip) {
   }
 }
 
-/* ── Boot ───────────────────────────────────────────────────────── */
+/* - Boot - */
 document.addEventListener('DOMContentLoaded', () => {
   connectWS();
   // Restore view from URL hash (survives page refresh)

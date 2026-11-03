@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sentry — Network Security Auditor</title>
+<title>Sentry - Network Security Auditor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/theme.css"/>
 <style>
-/* ── Dashboard: overrides and page-specific styles ─────────────── */
+/* - Dashboard: overrides and page-specific styles - */
 .wrap{padding:0 32px}
 body{font-size:15px}
 
@@ -28,7 +28,7 @@ body{font-size:15px}
   border-color:var(--mint);
 }
 
-/* ── Cards ─────────────────────────────────────────────────────── */
+/* - Cards - */
 .card{
   background:var(--plum);
   border:1px solid rgba(227,204,192,0.12);
@@ -44,7 +44,7 @@ body{font-size:15px}
 .card-sub{font-size:12px;color:var(--stone);margin-top:3px}
 .card-body{padding:18px 24px}
 
-/* ── Step pill ─────────────────────────────────────────────────── */
+/* - Step pill - */
 .step-pill{
   display:inline-flex;align-items:center;overflow:hidden;
   border:1px solid rgba(227,204,192,0.2);border-radius:9999px;
@@ -63,7 +63,7 @@ body{font-size:15px}
   letter-spacing:0.16em;text-transform:uppercase;color:var(--stone);
 }
 
-/* ── Buttons ───────────────────────────────────────────────────── */
+/* - Buttons - */
 .btn{
   font-family:var(--font);font-size:13px;font-weight:500;
   border-radius:9999px;padding:9px 20px;cursor:pointer;
@@ -97,7 +97,7 @@ body{font-size:15px}
 }
 .btn-danger:hover{background:rgba(248,113,113,0.08)}
 
-/* ── Inputs ────────────────────────────────────────────────────── */
+/* - Inputs - */
 .input{
   font-family:var(--font);font-size:13px;
   color:var(--cream);background:var(--cocoa);
@@ -109,7 +109,7 @@ body{font-size:15px}
 .input::placeholder{color:var(--stone);opacity:0.7}
 .input:focus{border-color:var(--mint)}
 
-/* ── Section header ────────────────────────────────────────────── */
+/* - Section header - */
 .section-head{
   display:flex;align-items:flex-start;justify-content:space-between;
   padding-bottom:18px;margin-bottom:20px;
@@ -121,7 +121,7 @@ body{font-size:15px}
 }
 .section-sub{font-size:13px;color:var(--stone);margin-top:4px}
 
-/* ── Progress ──────────────────────────────────────────────────── */
+/* - Progress - */
 .progress-wrap{margin-bottom:18px}
 .progress-meta{
   display:flex;justify-content:space-between;
@@ -131,7 +131,7 @@ body{font-size:15px}
 .progress-track{height:2px;background:rgba(227,204,192,0.12);border-radius:99px;overflow:hidden}
 .progress-fill{height:100%;background:var(--mint);border-radius:99px;width:0;transition:width 0.4s var(--ease)}
 
-/* ── Live feed ─────────────────────────────────────────────────── */
+/* - Live feed - */
 .feed-label{
   font-size:10px;font-weight:500;letter-spacing:0.14em;
   text-transform:uppercase;color:var(--stone);margin-bottom:8px;
@@ -157,7 +157,7 @@ body{font-size:15px}
 .feed-ver {color:var(--stone)}
 .feed-cve {color:var(--red);margin-left:auto;flex-shrink:0}
 
-/* ── Score display ─────────────────────────────────────────────── */
+/* - Score display - */
 .score-panel{
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:28px 20px;
@@ -179,7 +179,7 @@ body{font-size:15px}
 .ring-high    {border-color:var(--orange)!important}
 .ring-critical{border-color:var(--red)!important}
 
-/* ── CVE severity grid ─────────────────────────────────────────── */
+/* - CVE severity grid - */
 .cve-grid{display:grid;grid-template-columns:repeat(4,1fr)}
 .cve-cell{
   padding:18px 0;text-align:center;
@@ -193,7 +193,7 @@ body{font-size:15px}
 .sev-medium  {color:var(--amber)}
 .sev-low     {color:var(--green)}
 
-/* ── Result header row ─────────────────────────────────────────── */
+/* - Result header row - */
 .result-row{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 22px;
@@ -202,7 +202,7 @@ body{font-size:15px}
 .result-ip  {font-size:15px;font-weight:500;color:var(--cream);font-family:var(--mono)}
 .result-host{font-size:11px;color:var(--stone);margin-top:2px}
 
-/* ── Table ─────────────────────────────────────────────────────── */
+/* - Table - */
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead tr{background:rgba(0,0,0,0.2)}
@@ -240,7 +240,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .cve-id{color:var(--mint)}
 .fix-text{font-size:12px;color:var(--stone);line-height:1.55;max-width:240px}
 
-/* ── Device cards ──────────────────────────────────────────────── */
+/* - Device cards - */
 .device-grid-wrap{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
@@ -257,14 +257,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .device-host{font-size:11px;color:var(--stone);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ── Count badge ───────────────────────────────────────────────── */
+/* - Count badge - */
 .count-badge{
   display:inline-flex;align-items:center;
   border:1px solid rgba(227,204,192,0.15);border-radius:9999px;
   padding:3px 12px;font-size:11px;font-weight:500;color:var(--stone);
 }
 
-/* ── Toast ─────────────────────────────────────────────────────── */
+/* - Toast - */
 #toast-container{
   position:fixed;bottom:24px;right:24px;
   display:flex;flex-direction:column;gap:8px;z-index:200;
@@ -281,7 +281,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .toast-success{border-color:rgba(162,246,245,0.3);color:var(--mint)}
 .toast-error  {border-color:rgba(248,113,113,0.3);color:var(--red)}
 .toast-info   {border-color:rgba(133,141,249,0.3);color:var(--lavender)}
-/* ── Schedule cards ────────────────────────────────────────────── */
+/* - Schedule cards - */
 .sched-grid{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
@@ -335,6 +335,30 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   transform:translateX(16px);background:var(--mint);
 }
 
+/* Schedule email-report toggle (checkbox + label in a column) */
+.sched-email-label{
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-size:12px;color:var(--cream);user-select:none;
+}
+.sched-email-label .toggle-input{
+  position:absolute;opacity:0;width:0;height:0;
+}
+.sched-email-label .toggle-slider{
+  position:relative;left:0;top:0;
+  width:36px;height:20px;background:rgba(255,255,255,0.1);
+  border-radius:99px;cursor:pointer;
+}
+.sched-email-label .toggle-slider::before{
+  content:'';position:absolute;left:3px;top:3px;
+  width:14px;height:14px;border-radius:50%;background:var(--stone);
+  transition:transform 0.2s,background 0.2s;
+}
+.sched-email-label .toggle-input:checked + .toggle-slider{background:rgba(162,246,245,0.25)}
+.sched-email-label .toggle-input:checked + .toggle-slider::before{
+  transform:translateX(16px);background:var(--mint);
+}
+.sched-email-text{white-space:nowrap}
+
 /* Add schedule form */
 .sched-form{
   background:rgba(0,0,0,0.2);
@@ -367,7 +391,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 </head>
 <body>
 
-<!-- ── Nav ──────────────────────────────────────────────────────────── -->
+<!-- - Nav - -->
 <nav role="navigation" aria-label="Main navigation">
   <div class="wrap">
     <div class="nav-inner">
@@ -432,7 +456,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </nav>
 
-<!-- ── Scan View ─────────────────────────────────────────────────────── -->
+<!-- - Scan View - -->
 <div id="view-dashboard" class="view" role="main" aria-label="Scan dashboard">
   <div class="wrap" style="padding-top:28px;padding-bottom:48px">
 
@@ -443,7 +467,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       </div>
     </div>
 
-    <!-- ── 1. Discovery ───────────────────────────────────────────── -->
+    <!-- - 1. Discovery - -->
     <div class="card" aria-labelledby="disc-title">
       <div class="card-head">
         <div>
@@ -471,14 +495,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         </div>
         <div id="device-grid" class="hidden" aria-live="polite">
           <p style="font-size:12px;color:var(--stone);margin-bottom:8px">
-            <span id="device-count">0</span> device(s) found — click to audit
+            <span id="device-count">0</span> device(s) found - click to audit
           </p>
           <div id="device-list" class="device-grid-wrap"></div>
         </div>
       </div>
     </div>
 
-    <!-- ── 2. Audit ───────────────────────────────────────────────── -->
+    <!-- - 2. Audit - -->
     <div class="card" aria-labelledby="audit-title">
       <div class="card-head">
         <div>
@@ -493,7 +517,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <div class="card-body">
         <div style="display:flex;gap:10px;margin-bottom:18px">
           <input id="audit-ip" type="text"
-            placeholder="Target IP address — e.g. 192.168.1.1"
+            placeholder="Target IP address - e.g. 192.168.1.1"
             class="input" style="flex:1" aria-label="Target IP address"/>
           <button id="btn-audit" onclick="startAudit()" class="btn btn-mint">
             Start audit
@@ -521,7 +545,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       </div>
     </div>
 
-    <!-- ── 3. Results ─────────────────────────────────────────────── -->
+    <!-- - 3. Results - -->
     <div id="results-wrap" class="hidden" aria-live="polite">
 
       <!-- Score + summary -->
@@ -529,16 +553,16 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         <div style="display:grid;grid-template-columns:140px 1fr">
           <div class="score-panel">
             <div id="score-ring" class="score-circle">
-              <span id="score-value" class="score-num">—</span>
+              <span id="score-value" class="score-num">-</span>
             </div>
-            <p class="score-lbl" id="score-label">—</p>
+            <p class="score-lbl" id="score-label">-</p>
             <p class="score-hint">/ 100</p>
           </div>
           <div>
             <div class="result-row">
               <div>
                 <p style="font-size:11px;color:var(--stone);margin-bottom:2px;letter-spacing:0.06em;text-transform:uppercase">Target</p>
-                <p class="result-ip" id="result-ip">—</p>
+                <p class="result-ip" id="result-ip">-</p>
                 <p class="result-host" id="result-hostname"></p>
               </div>
               <div style="display:flex;gap:8px">
@@ -603,7 +627,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 
-<!-- ── History View ───────────────────────────────────────────────────── -->
+<!-- - History View - -->
 <div id="view-history" class="view hidden" role="main" aria-label="Scan history">
   <div class="wrap" style="padding-top:28px;padding-bottom:48px">
 
@@ -642,7 +666,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 
-<!-- ── Schedules View ─────────────────────────────────────────────────── -->
+<!-- - Schedules View - -->
 <div id="view-schedules" class="view hidden" role="main" aria-label="Scheduled scans">
   <div class="wrap" style="padding-top:28px;padding-bottom:48px">
 
@@ -687,6 +711,13 @@ tr:hover td{background:rgba(255,255,255,0.02)}
               <option value="168">Every week</option>
             </select>
           </div>
+          <div class="form-field" style="display:flex;align-items:flex-end;flex-direction:column;justify-content:flex-end">
+            <label class="sched-email-label">
+              <input type="checkbox" id="sched-email-report" class="toggle-input"/>
+              <span class="toggle-slider"></span>
+              <span class="sched-email-text">Email report</span>
+            </label>
+          </div>
           <div class="form-field" style="display:flex;align-items:flex-end">
             <button onclick="createSchedule()" class="btn btn-mint" style="white-space:nowrap">
               Add schedule
@@ -700,7 +731,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     <div id="sched-list-wrap">
       <div id="sched-empty" class="hidden"
         style="text-align:center;padding:48px 0;color:var(--stone);font-size:14px">
-        No schedules yet — add one above to start automating your audits.
+        No schedules yet - add one above to start automating your audits.
       </div>
       <div id="sched-grid" class="sched-grid"></div>
     </div>
@@ -708,7 +739,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 
-<!-- ── Settings View ─────────────────────────────────────────────── -->
+<!-- - Settings View - -->
 <div id="view-settings" class="view hidden" role="main" aria-label="Settings">
   <div class="wrap" style="padding-top:28px;padding-bottom:48px">
 
@@ -729,6 +760,27 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <div class="card-body">
         <div id="email-status-wrap">
           <p style="font-size:13px;color:var(--sand);margin-bottom:8px">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:480px;margin-bottom:20px">
+      <div class="card-head">
+        <div>
+          <p class="card-title">Change Email</p>
+          <p class="card-sub">Verify the new email before it replaces your current one</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <input id="settings-change-email" type="email" placeholder="New email address" class="input" aria-label="New email address"/>
+          <input id="settings-change-email-pw" type="password" placeholder="Current password" class="input" aria-label="Current password"/>
+          <button onclick="changeEmail()" class="btn btn-mint" style="align-self:flex-start">
+            Request email change
+          </button>
+          <p style="font-size:11px;color:var(--stone);margin-top:4px">
+            Your current email stays in place until you click the verification link.
+          </p>
         </div>
       </div>
     </div>

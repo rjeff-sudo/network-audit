@@ -34,12 +34,13 @@ func (h *SetupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "setup page not found", http.StatusNotFound)
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 }
 
-// Create handles POST /api/setup — creates the admin user.
+// Create handles POST /api/setup - creates the admin user.
 func (h *SetupHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		jsonError(w, "method not allowed", http.StatusMethodNotAllowed)

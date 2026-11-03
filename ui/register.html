@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sentry — Create Account</title>
+<title>Sentry - Create Account</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
@@ -33,7 +33,7 @@ body{
 }
 :focus-visible{outline:2px solid var(--mint);outline-offset:3px;border-radius:4px}
 
-/* ── Background grid ───────────────────────────────────────────── */
+/* - Background grid - */
 body::before{
   content:'';position:fixed;inset:0;z-index:0;
   background-image:
@@ -43,7 +43,7 @@ body::before{
   pointer-events:none;
 }
 
-/* ── Card ─────────────────────────────────────────────────────── */
+/* - Card - */
 .card{
   position:relative;z-index:1;
   background:var(--plum);
@@ -58,7 +58,7 @@ body::before{
   to  {opacity:1;transform:translateY(0)    scale(1)}
 }
 
-/* ── Logo ─────────────────────────────────────────────────────── */
+/* - Logo - */
 .logo{
   display:flex;align-items:center;gap:10px;
   margin-bottom:32px;
@@ -72,7 +72,7 @@ body::before{
 .logo-name{font-size:14px;font-weight:500;letter-spacing:0.04em;color:var(--cream)}
 .logo-sub{font-size:11px;color:var(--stone);margin-left:4px}
 
-/* ── Heading ──────────────────────────────────────────────────── */
+/* - Heading - */
 .heading{
   font-size:24px;font-weight:300;
   letter-spacing:-0.01em;color:var(--cream);
@@ -84,7 +84,7 @@ body::before{
   margin-bottom:32px;line-height:1.6;
 }
 
-/* ── Form ─────────────────────────────────────────────────────── */
+/* - Form - */
 .field{margin-bottom:16px}
 .field label{
   display:block;font-size:11px;font-weight:500;
@@ -106,7 +106,7 @@ body::before{
 }
 .field-note{font-size:11px;color:var(--stone);margin-top:6px}
 
-/* ── Banner ───────────────────────────────────────────────────── */
+/* - Banner - */
 .banner{
   display:flex;align-items:flex-start;gap:10px;
   border-radius:6px;padding:11px 14px;
@@ -125,7 +125,39 @@ body::before{
 .banner-text{font-size:13px;color:var(--red);line-height:1.5}
 .banner.success .banner-text{color:var(--mint)}
 
-/* ── Submit button ────────────────────────────────────────────── */
+/*.field input::-ms-reveal{display:none}
+Brown-gray wrapper keeps input padding at right for the eye button */
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:44px}
+.eye-btn{
+  position:absolute;top:50%;right:6px;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  padding:6px;line-height:0;border-radius:4px;
+  color:var(--stone);transition:color 0.15s;
+}
+.eye-btn:hover{color:var(--cream)}
+.eye-btn svg{width:16px;height:16px}
+.eye-btn .eye-off{display:none}
+.eye-btn.revealed .eye-on{display:none}
+.eye-btn.revealed .eye-off{display:inline}
+
+/* Requirements checklist */
+.pw-requirements{
+  margin-top:8px;font-size:11px;color:var(--stone);
+  line-height:1.7;list-style:none;padding:0;
+}
+.pw-requirements li{display:flex;align-items:center;gap:6px}
+.pw-requirements li::before{
+  content:'';width:10px;height:10px;border-radius:50%;flex-shrink:0;
+  border:1px solid rgba(227,204,192,0.35);
+  transition:background 0.2s,border-color 0.2s;
+}
+.pw-requirements li.met{color:var(--mint)}
+.pw-requirements li.met::before{
+  background:var(--mint);border-color:var(--mint);
+}
+
+/* - Submit button - */
 .btn-submit{
   font-family:var(--font);font-size:14px;font-weight:500;
   color:var(--cocoa);background:var(--mint);
@@ -139,7 +171,7 @@ body::before{
 .btn-submit:active{transform:translateY(0)}
 .btn-submit:disabled{opacity:0.4;cursor:not-allowed;transform:none}
 
-/* ── Spinner ──────────────────────────────────────────────────── */
+/* - Spinner - */
 .spinner{
   width:14px;height:14px;border-radius:50%;
   border:2px solid rgba(32,15,10,0.3);
@@ -149,7 +181,7 @@ body::before{
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── Footer note ──────────────────────────────────────────────── */
+/* - Footer note - */
 .card-footer{
   margin-top:28px;padding-top:20px;
   border-top:1px solid rgba(227,204,192,0.08);
@@ -228,17 +260,44 @@ body::before{
         placeholder="you@company.com"
         autocomplete="email"
         required/>
-      <p class="field-note">A verification link is sent here — your account stays locked until you click it.</p>
+      <p class="field-note">A verification link is sent here - your account stays locked until you click it.</p>
     </div>
 
     <div class="field">
       <label for="password">Password</label>
-      <input
-        id="password" name="password" type="password"
-        placeholder="At least 8 characters"
-        autocomplete="new-password"
-        minlength="8"
-        required/>
+      <div class="pw-wrap">
+        <input
+          id="password" name="password" type="password"
+          placeholder="Min 8 chars, a number and a symbol"
+          autocomplete="new-password"
+          minlength="8"
+          required/>
+        <button type="button" class="eye-btn" data-eye="password" aria-label="Show password">
+          <svg class="eye-on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+          <svg class="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><path d="M3 13 13 3"/></svg>
+        </button>
+      </div>
+      <ul class="pw-requirements" id="pw-reqs">
+        <li data-req="len">At least 8 characters</li>
+        <li data-req="letter">At least one letter</li>
+        <li data-req="num">At least one number</li>
+        <li data-req="sym">At least one symbol or special character</li>
+      </ul>
+    </div>
+
+    <div class="field">
+      <label for="confirm">Confirm password</label>
+      <div class="pw-wrap">
+        <input
+          id="confirm" name="confirm" type="password"
+          placeholder="Repeat your password"
+          autocomplete="new-password"
+          required/>
+        <button type="button" class="eye-btn" data-eye="confirm" aria-label="Show password">
+          <svg class="eye-on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+          <svg class="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><path d="M3 13 13 3"/></svg>
+        </button>
+      </div>
     </div>
 
     <button type="submit" class="btn-submit" id="btn-submit">
@@ -276,14 +335,66 @@ body::before{
     okBanner.style.display = 'none';
   }
 
+  // - Show / hide password toggles -
+  document.querySelectorAll('.eye-btn').forEach(btn => {
+    btn.addEventListener('click', function(){
+      const input = document.getElementById(this.dataset.eye);
+      const show  = input.type === 'password';
+      input.type  = show ? 'text' : 'password';
+      this.classList.toggle('revealed', show);
+      this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      input.focus({preventScroll:true});
+    });
+  });
+
+  // - Block pasting into password fields -
+  document.querySelectorAll('input[type="password"]').forEach(inp => {
+    inp.addEventListener('paste', e => e.preventDefault());
+    inp.addEventListener('drop',  e => e.preventDefault());
+  });
+
+  // - Live requirement checklist -
+  const reqItems = document.querySelectorAll('#pw-reqs li');
+  function passwordProblem(pw){
+    if (pw.length < 8)  return 'Password must be at least 8 characters.';
+    if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+    if (!/[0-9]/.test(pw))    return 'Password must contain at least one number.';
+    if (!/[^A-Za-z0-9]/.test(pw)) return 'Password must contain at least one special character or symbol.';
+    return null;
+  }
+  document.getElementById('password').addEventListener('input', function(){
+    const pw = this.value;
+    const checks = [
+      ['len',    pw.length >= 8],
+      ['letter', /[A-Za-z]/.test(pw)],
+      ['num',    /[0-9]/.test(pw)],
+      ['sym',    /[^A-Za-z0-9]/.test(pw)],
+    ];
+    checks.forEach(([k, ok]) => {
+      const li = document.querySelector('#pw-reqs li[data-req="' + k + '"]');
+      li.classList.toggle('met', ok);
+    });
+  });
+
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     errBanner.style.display = 'none';
 
+    const pw   = document.getElementById('password').value;
+    const conf = document.getElementById('confirm').value;
+
+    const pwError = passwordProblem(pw);
+    if (pwError) { showError(pwError); document.getElementById('password').focus(); return; }
+    if (pw !== conf) {
+      showError('Passwords do not match. Please retype them.');
+      document.getElementById('confirm').focus();
+      return;
+    }
+
     const body = {
       username: document.getElementById('username').value.trim(),
       email:    document.getElementById('email').value.trim(),
-      password: document.getElementById('password').value,
+      password: pw,
     };
 
     btn.disabled = true;
@@ -300,7 +411,10 @@ body::before{
 
       if (res.ok) {
         form.style.display = 'none';
-        okText.textContent = data.message || 'Account created — check your email to verify.';
+        okText.textContent = data.message || 'Account created - check your email to verify.';
+        if (data.verify_link) {
+          okText.textContent += ' (Or click here to verify manually: ' + data.verify_link + ')';
+        }
         okBanner.style.display = 'flex';
       } else {
         showError(data.error || 'Registration failed. Please try again.');

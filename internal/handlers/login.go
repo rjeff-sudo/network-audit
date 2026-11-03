@@ -37,6 +37,7 @@ func (h *LoginHandler) showForm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/index.html", http.StatusFound)
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 	http.ServeFile(w, r, "./ui/login.html")
 }
 
@@ -75,17 +76,17 @@ func (h *LoginHandler) handleSubmit(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/login?error=unverified", http.StatusFound)
 			return
 		}
-		// Wrong credentials — redirect back with error flag
+		// Wrong credentials - redirect back with error flag
 		http.Redirect(w, r, "/login?error=1", http.StatusFound)
 		return
 	}
 
-	// Correct — set a session bound to this user and go to dashboard
+	// Correct - set a session bound to this user and go to dashboard
 	h.auth.SetSession(w, username)
 	http.Redirect(w, r, "/index.html", http.StatusFound)
 }
 
-// Logout handles GET /logout — clears the session and redirects to login.
+// Logout handles GET /logout - clears the session and redirects to login.
 func (h *LoginHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.auth.ClearSession(w)
 	http.Redirect(w, r, "/login", http.StatusFound)

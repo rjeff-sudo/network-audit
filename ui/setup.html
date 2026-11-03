@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sentry — Setup</title>
+<title>Sentry - Setup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
@@ -117,6 +117,21 @@ body::before{
 /* Hint */
 .field-hint{font-size:11px;color:var(--stone);margin-top:5px}
 
+/* Eye toggle + paste-block wrapper */
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:44px}
+.eye-btn{
+  position:absolute;top:50%;right:6px;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  padding:6px;line-height:0;border-radius:4px;
+  color:var(--stone);transition:color 0.15s;
+}
+.eye-btn:hover{color:var(--cream)}
+.eye-btn svg{width:16px;height:16px}
+.eye-btn .eye-off{display:none}
+.eye-btn.revealed .eye-on{display:none}
+.eye-btn.revealed .eye-off{display:inline}
+
 /* Error banner */
 .error-banner{
   display:none;align-items:center;gap:10px;
@@ -224,16 +239,22 @@ body::before{
 
       <div class="field">
         <label for="password">Password</label>
-        <input id="password" name="password" type="password"
-          placeholder="Choose a strong password"
-          autocomplete="new-password" required/>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password"
+            placeholder="Min 8 chars, a number and a symbol"
+            autocomplete="new-password" required/>
+          <button type="button" class="eye-btn" data-eye="password" aria-label="Show password">
+            <svg class="eye-on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+            <svg class="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><path d="M3 13 13 3"/></svg>
+          </button>
+        </div>
         <div class="strength-wrap" id="strength-wrap">
           <div class="strength-track">
             <div class="strength-fill" id="strength-fill"></div>
           </div>
           <p class="strength-label" id="strength-label">Too short</p>
         </div>
-        <p class="field-hint">Minimum 8 characters.</p>
+        <p class="field-hint">Minimum 8 characters, with at least one number and one symbol.</p>
       </div>
 
       <div class="field">
@@ -246,9 +267,15 @@ body::before{
 
       <div class="field">
         <label for="confirm">Confirm Password</label>
-        <input id="confirm" name="confirm" type="password"
-          placeholder="Repeat your password"
-          autocomplete="new-password" required/>
+        <div class="pw-wrap">
+          <input id="confirm" name="confirm" type="password"
+            placeholder="Repeat your password"
+            autocomplete="new-password" required/>
+          <button type="button" class="eye-btn" data-eye="confirm" aria-label="Show password">
+            <svg class="eye-on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+            <svg class="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><path d="M3 13 13 3"/></svg>
+          </button>
+        </div>
       </div>
 
       <button type="submit" class="btn-submit" id="btn-submit">
@@ -283,7 +310,7 @@ body::before{
 </div>
 
 <script>
-// ── Step indicator ────────────────────────────────────────────────
+// - Step indicator -
 function setStep(n) {
   ['dot1','dot2','dot3'].forEach((id,i) => {
     const el = document.getElementById(id);
@@ -292,7 +319,34 @@ function setStep(n) {
   });
 }
 
-// ── Password strength ─────────────────────────────────────────────
+// - Show / hide toggles -
+document.querySelectorAll('.eye-btn').forEach(btn => {
+  btn.addEventListener('click', function(){
+    const input = document.getElementById(this.dataset.eye);
+    const show  = input.type === 'password';
+    input.type  = show ? 'text' : 'password';
+    this.classList.toggle('revealed', show);
+    this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    input.focus({preventScroll:true});
+  });
+});
+
+// - Block pasting into password fields -
+document.querySelectorAll('input[type="password"]').forEach(inp => {
+  inp.addEventListener('paste', e => e.preventDefault());
+  inp.addEventListener('drop',  e => e.preventDefault());
+});
+
+// - Password rules -
+function passwordProblem(pw){
+  if (pw.length < 8)  return 'Password must be at least 8 characters.';
+  if (!/[A-Za-z]/.test(pw)) return 'Password must contain at least one letter.';
+  if (!/[0-9]/.test(pw))    return 'Password must contain at least one number.';
+  if (!/[^A-Za-z0-9]/.test(pw)) return 'Password must contain at least one special character or symbol.';
+  return null;
+}
+
+// - Password strength -
 document.getElementById('password').addEventListener('input', function(){
   const val  = this.value;
   const wrap = document.getElementById('strength-wrap');
@@ -333,7 +387,7 @@ document.getElementById('confirm').addEventListener('input', function(){
   else setStep(2);
 });
 
-// ── Form submit ───────────────────────────────────────────────────
+// - Form submit -
 document.getElementById('setup-form').addEventListener('submit', async function(e){
   e.preventDefault();
 
@@ -356,6 +410,12 @@ document.getElementById('setup-form').addEventListener('submit', async function(
   }
   if(password.length < 8){
     showError('Password must be at least 8 characters.');
+    document.getElementById('password').focus();
+    return;
+  }
+  const pwErr = passwordProblem(password);
+  if (pwErr) {
+    showError(pwErr);
     document.getElementById('password').focus();
     return;
   }

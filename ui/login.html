@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sentry — Login</title>
+<title>Sentry - Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500&family=JetBrains+Mono:wght@300&display=swap" rel="stylesheet"/>
@@ -33,7 +33,7 @@ body{
 }
 :focus-visible{outline:2px solid var(--mint);outline-offset:3px;border-radius:4px}
 
-/* ── Background grid ────────────────────────────────────────────── */
+/* - Background grid - */
 body::before{
   content:'';position:fixed;inset:0;z-index:0;
   background-image:
@@ -43,7 +43,7 @@ body::before{
   pointer-events:none;
 }
 
-/* ── Card ───────────────────────────────────────────────────────── */
+/* - Card - */
 .card{
   position:relative;z-index:1;
   background:var(--plum);
@@ -58,7 +58,7 @@ body::before{
   to  {opacity:1;transform:translateY(0)    scale(1)}
 }
 
-/* ── Logo ───────────────────────────────────────────────────────── */
+/* - Logo - */
 .logo{
   display:flex;align-items:center;gap:10px;
   margin-bottom:32px;
@@ -72,7 +72,7 @@ body::before{
 .logo-name{font-size:14px;font-weight:500;letter-spacing:0.04em;color:var(--cream)}
 .logo-sub{font-size:11px;color:var(--stone);margin-left:4px}
 
-/* ── Heading ────────────────────────────────────────────────────── */
+/* - Heading - */
 .heading{
   font-size:24px;font-weight:300;
   letter-spacing:-0.01em;color:var(--cream);
@@ -84,7 +84,7 @@ body::before{
   margin-bottom:32px;line-height:1.6;
 }
 
-/* ── Form ───────────────────────────────────────────────────────── */
+/* - Form - */
 .field{margin-bottom:16px}
 .field label{
   display:block;font-size:11px;font-weight:500;
@@ -105,7 +105,23 @@ body::before{
   box-shadow:0 0 0 3px rgba(162,246,245,0.08);
 }
 
-/* ── Banner state ───────────────────────────────────────────────── */
+/*.field input::-ms-reveal{display:none}
+Wrapper keeps input padding free for the eye button */
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:44px}
+.eye-btn{
+  position:absolute;top:50%;right:6px;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  padding:6px;line-height:0;border-radius:4px;
+  color:var(--stone);transition:color 0.15s;
+}
+.eye-btn:hover{color:var(--cream)}
+.eye-btn svg{width:16px;height:16px}
+.eye-btn .eye-off{display:none}
+.eye-btn.revealed .eye-on{display:none}
+.eye-btn.revealed .eye-off{display:inline}
+
+/* - Banner state - */
 .error-banner{
   display:flex;align-items:center;gap:10px;
   background:rgba(248,113,113,0.08);
@@ -128,13 +144,13 @@ body::before{
 }
 .error-text{font-size:13px;color:var(--red)}
 
-/* ── Banner variants ─────────────────────────────────────────── */
+/* - Banner variants - */
 .error-banner.success{background:rgba(162,246,245,0.08);border-color:rgba(162,246,245,0.3)}
 .error-banner.success .error-text{color:var(--mint)}
 .error-banner.success .error-icon{background:rgba(162,246,245,0.2)}
 .error-banner.success .error-icon svg{display:none}
 
-/* ── Submit button ──────────────────────────────────────────────── */
+/* - Submit button - */
 .btn-submit{
   font-family:var(--font);font-size:14px;font-weight:500;
   color:var(--cocoa);background:var(--mint);
@@ -148,7 +164,7 @@ body::before{
 .btn-submit:active{transform:translateY(0)}
 .btn-submit:disabled{opacity:0.4;cursor:not-allowed;transform:none}
 
-/* ── Spinner ────────────────────────────────────────────────────── */
+/* - Spinner - */
 .spinner{
   width:14px;height:14px;border-radius:50%;
   border:2px solid rgba(32,15,10,0.3);
@@ -158,7 +174,7 @@ body::before{
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── Footer note ────────────────────────────────────────────────── */
+/* - Footer note - */
 .card-footer{
   margin-top:28px;padding-top:20px;
   border-top:1px solid rgba(227,204,192,0.08);
@@ -206,7 +222,7 @@ body::before{
     Sign in to access your network security dashboard.
   </p>
 
-  <!-- Status banner — content depends on ?error= / ?verified= params -->
+  <!-- Status banner - content depends on ?error= / ?verified= params -->
   <div id="error-banner" class="error-banner" style="display:none"
     role="alert" aria-live="assertive">
     <div class="error-icon" aria-hidden="true">
@@ -231,11 +247,17 @@ body::before{
 
     <div class="field">
       <label for="password">Password</label>
-      <input
-        id="password" name="password" type="password"
-        placeholder="Enter your password"
-        autocomplete="current-password"
-        required/>
+      <div class="pw-wrap">
+        <input
+          id="password" name="password" type="password"
+          placeholder="Enter your password"
+          autocomplete="current-password"
+          required/>
+        <button type="button" class="eye-btn" id="eye-btn" aria-label="Show password">
+          <svg class="eye-on" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+          <svg class="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><path d="M3 13 13 3"/></svg>
+        </button>
+      </div>
     </div>
 
     <button type="submit" class="btn-submit" id="btn-submit">
@@ -255,6 +277,7 @@ body::before{
 
 <script>
 // Show the right banner depending on ?error= / ?verified= params
+// Show the right banner depending on ?error= / ?verified= params
 (function(){
   const params = new URLSearchParams(location.search);
   const banner = document.getElementById('error-banner');
@@ -262,7 +285,7 @@ body::before{
 
   const messages = {
     '1':            'Incorrect username or password. Please try again.',
-    'unverified':   'Your email has not been verified yet — check your inbox for the verification link before signing in.',
+    'unverified':   'Your email has not been verified yet - check your inbox for the verification link before signing in.',
     'missing_token':'Verification link is incomplete. Please request a new verification email.',
     'invalid_token':'That verification link is invalid or has expired. Sign in and resend the verification email.',
   };
@@ -270,7 +293,7 @@ body::before{
   let shownWith = null;
   if (params.get('verified') === '1') {
     banner.classList.add('success');
-    text.textContent = 'Email verified! Your account is active — you can sign in now.';
+    text.textContent = 'Email verified! Your account is active - you can sign in now.';
     shownWith = 'success';
   } else if (messages[params.get('error')]) {
     text.textContent = messages[params.get('error')];
@@ -296,6 +319,19 @@ document.getElementById('login-form').addEventListener('submit', function(){
   spinner.style.display = 'block';
   text.textContent    = 'Signing in...';
 });
+
+// Show / hide password toggle
+(function(){
+  const eye   = document.getElementById('eye-btn');
+  const input = document.getElementById('password');
+  eye.addEventListener('click', function(){
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    eye.classList.toggle('revealed', show);
+    eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    input.focus({preventScroll:true});
+  });
+})();
 </script>
 </body>
 </html>
