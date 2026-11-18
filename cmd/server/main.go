@@ -47,13 +47,13 @@ func main() {
 	engine  := audit.NewEngine(cfg, db, nvdCli)
 	authSvc  := auth.New(cfg.Auth, db)
 	emailCfg := email.Config{
-	Host:        cfg.SMTP.Host,
-	Port:        cfg.SMTP.Port,
-	Username:    cfg.SMTP.Username,
-	Password:    cfg.SMTP.Password,
-	FromAddress: cfg.SMTP.FromAddress,
-	ResendAPIKey: cfg.SMTP.ResendAPIKey,
-}
+		Host:         cfg.SMTP.Host,
+		Port:         cfg.SMTP.Port,
+		Username:     cfg.SMTP.Username,
+		Password:     cfg.SMTP.Password,
+		FromAddress:  cfg.SMTP.FromAddress,
+		ResendAPIKey: cfg.SMTP.ResendAPIKey,
+	}
 	emailCli := email.NewClient(emailCfg)
 	sched    := scheduler.New(db, engine, wsHub, emailCli, authSvc)
 	serverURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
@@ -109,9 +109,10 @@ func main() {
         }
     })
 	mux.HandleFunc("/api/schedules/", schedH.Route)
-	mux.HandleFunc("/api/settings/password",           settingsH.ChangePassword)
-	mux.HandleFunc("/api/settings/email-status",       settingsH.EmailStatus)
-	mux.HandleFunc("/api/settings/resend-verification", settingsH.ResendVerification)
+	mux.HandleFunc("/api/settings/password",             settingsH.ChangePassword)
+	mux.HandleFunc("/api/settings/email-status",         settingsH.EmailStatus)
+	mux.HandleFunc("/api/settings/change-email",         settingsH.ChangeEmail)
+	mux.HandleFunc("/api/settings/resend-verification",  settingsH.ResendVerification)
 	mux.HandleFunc("/api/topology",                    topoH.HandleTopo)
 	mux.HandleFunc("/api/trends",                      trendH.HandleTrends)
 	mux.HandleFunc("/api/trends/devices",              trendH.HandleDeviceTrends)

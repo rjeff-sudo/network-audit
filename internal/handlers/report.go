@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rjeff-sudo/sme-shield/internal/auth"
@@ -123,6 +125,29 @@ func parseScanTime(s string) time.Time {
 }
 
 // ── Shared response helpers ───────────────────────────────────────────────────
+
+// serveFileDirectly reads a file from disk and writes it to the response,
+// setting the correct Content-Type. This avoids the http.ServeFile 301
+// redirect bug that fires when the URL path ends in ".html".
+func serveFileDirectly(w http.ResponseWriter, path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	switch {
+	case strings.HasSuffix(path, ".html"):
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case strings.HasSuffix(path, ".css"):
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	case strings.HasSuffix(path, ".js"):
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
 
 func jsonOK(w http.ResponseWriter, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")

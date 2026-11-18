@@ -45,6 +45,7 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IP          string `json:"ip"`
 		Label       string `json:"label"`
 		IntervalHrs int    `json:"interval_hrs"`
+		EmailReport bool   `json:"email_report"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
@@ -59,7 +60,7 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sc, err := h.sched.Create(auth.UserIDFromContext(r.Context()), body.IP, body.Label, body.IntervalHrs)
+	sc, err := h.sched.Create(auth.UserIDFromContext(r.Context()), body.IP, body.Label, body.IntervalHrs, body.EmailReport)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return

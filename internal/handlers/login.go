@@ -38,7 +38,7 @@ func (h *LoginHandler) showForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
-	http.ServeFile(w, r, "./ui/login.html")
+	serveFileDirectly(w, "./ui/login.html")
 }
 
 // handleSubmit processes the login form POST.

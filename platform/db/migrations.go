@@ -83,4 +83,12 @@ var migrations = []string{
 	`UPDATE schedules SET user_id = COALESCE((SELECT id FROM users ORDER BY id LIMIT 1), 0) WHERE user_id = 0`,
 	`CREATE INDEX IF NOT EXISTS idx_scans_user_id     ON scans(user_id)`,
 	`CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id)`,
+
+	// v11 — email report columns on schedules (required by scheduler.go)
+	`ALTER TABLE schedules ADD COLUMN email_report  INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE schedules ADD COLUMN email_sent    INTEGER NOT NULL DEFAULT 0`,
+	`ALTER TABLE schedules ADD COLUMN email_sent_at TEXT    NOT NULL DEFAULT ''`,
+
+	// v12 — pending_email column on users (required by auth.go for email-change flow)
+	`ALTER TABLE users ADD COLUMN pending_email TEXT NOT NULL DEFAULT ''`,
 }

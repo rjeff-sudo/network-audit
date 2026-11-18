@@ -234,52 +234,65 @@ func (c *Client) sendReportSMTP(toEmail string, pdf []byte, ip string, scanTime 
 	return smtp.SendMail(addr, auth, c.cfg.FromAddress, []string{toEmail}, []byte(msg))
 }
 
-// sendReportResend sends the audit PDF via the Resend API.
-//
-// Resend supports attachments via the "attachment" property in the email payload.
-// However, the simplest approach for now is to embed a download link in the email
-// body, since Resend's free tier attachment handling may require a paid plan.
-// We'll include a link to the report download endpoint instead.
+// sendReportResend sends the audit PDF via the Resend API with the PDF as an
+// inline attachment. The payload is marshalled with encoding/json so that any
+// characters in the HTML body do not break the JSON.
 func (c *Client) sendReportResend(toEmail string, pdf []byte, ip string, scanTime time.Time) error {
-	// For now, embed a link to the report download API endpoint.
-	// The frontend can fetch /api/report/{id} if needed; we just include a placeholder link.
-	reportLink := fmt.Sprintf("http://localhost:8080/api/report/%s", ip) // TODO: use real report ID
-
-	htmlBody := fmt.Sprintf(
-		"<html><body style=\"font-family:sans-serif;font-size:14px;color:#333\">\r\n"+
-			"<p>Hi,</p>\r\n"+
-			"<p>Your Sentry network security audit report is ready.</p>\r\n"+
-			"<p>Download the report: <a href=\"%s\">Sentry Security Report PDF</a></p>\r\n"+
-			"<p style=\"font-size:12px;color:#999\">- The Sentry Team</p>\r\n"+
-			"</body></html>\r\n", reportLink)
-
 	apiKey := c.cfg.ResendAPIKey
 	if apiKey == "" {
-		// fallback to env var
-		envKey := os.Getenv("RESEND_API_KEY")
-		if envKey != "" {
-			apiKey = envKey
-		}
+		apiKey = os.Getenv("RESEND_API_KEY")
 	}
 	if apiKey == "" {
 		log.Printf("[email] Resend API key not set - skipping report email to %s", toEmail)
 		return nil
 	}
 
-	url := "https://api.resend.com/api/emails"
+	htmlBody := fmt.Sprintf(
+		"<html><body style=\"font-family:sans-serif;font-size:14px;color:#333\">"+
+			"<p>Hi,</p>"+
+			"<p>Your Sentry network security audit report for <strong>%s</strong> is attached.</p>"+
+			"<p>Report generated: %s</p>"+
+			"<p style=\"font-size:12px;color:#999\">- The Sentry Team</p>"+
+			"</body></html>",
+		ip, scanTime.UTC().Format("02 Jan 2006, 15:04 MST"))
 
-	reqBody := fmt.Sprintf(`{"from":"Sentry <%s>","to":"%s","subject":"Sentry Security Report","html":"%s"}`, c.cfg.FromAddress, toEmail, htmlBody)
+	filename := fmt.Sprintf("Sentry-report-%s.pdf", ip)
 
-	body := []byte(reqBody)
+	payload := struct {
+		From        string `json:"from"`
+		To          string `json:"to"`
+		Subject     string `json:"subject"`
+		HTML        string `json:"html"`
+		Attachments []struct {
+			Filename string `json:"filename"`
+			Content  string `json:"content"` // base64-encoded
+		} `json:"attachments"`
+	}{
+		From:    fmt.Sprintf("Sentry <%s>", c.cfg.FromAddress),
+		To:      toEmail,
+		Subject: fmt.Sprintf("Sentry Security Report - %s", ip),
+		HTML:    htmlBody,
+		Attachments: []struct {
+			Filename string `json:"filename"`
+			Content  string `json:"content"`
+		}{
+			{Filename: filename, Content: base64.StdEncoding.EncodeToString(pdf)},
+		},
+	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal resend payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", "https://api.resend.com/emails", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
@@ -287,24 +300,22 @@ func (c *Client) sendReportResend(toEmail string, pdf []byte, ip string, scanTim
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("resend returned status %d: %s", resp.StatusCode, resp.Status)
+		return fmt.Errorf("resend returned status %d", resp.StatusCode)
 	}
 
 	var result struct {
-		ID      string `json:"id"`
-		Address string `json:"address"`
+		ID string `json:"id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		log.Printf("[email] Resend report send OK but could not parse response for %s", toEmail)
 	} else {
-		log.Printf("[email] Resend report sent to %s, ID=%s", result.Address, result.ID)
+		log.Printf("[email] Resend report sent to %s, message ID=%s", toEmail, result.ID)
 	}
-
 	return nil
 }
 
 // IsConfigured returns true if SMTP settings are present OR Resend API key is set.
 func (c *Client) IsConfigured() bool {
-	return c.cfg.Host != "" && c.cfg.Username != "" && c.cfg.FromAddress != "" ||
-		c.cfg.ResendAPIKey != ""
+	smtpOK := c.cfg.Host != "" && c.cfg.Username != "" && c.cfg.FromAddress != ""
+	return smtpOK || c.cfg.ResendAPIKey != ""
 }
