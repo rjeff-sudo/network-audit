@@ -100,11 +100,11 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, map[string]interface{}{
-		"scans":      scans,
-		"total":      total,
-		"limit":      limit,
-		"offset":     offset,
-		"has_more":   offset+len(scans) < total,
+		"scans":    scans,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+		"has_more": offset+len(scans) < total,
 	})
 }
 
@@ -129,16 +129,17 @@ func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		SELECT id, ip, COALESCE(hostname,''), risk_score, scan_time, user_id
 		FROM scans WHERE id = ?`, id).
 		Scan(&s.ID, &s.IP, &s.Hostname, &s.RiskScore, &scanTimeStr, &ownerID)
-	if err == nil && ownerID != auth.UserIDFromContext(r.Context()) {
-		jsonError(w, "scan not found", http.StatusNotFound)
-		return
-	}
 	if err == sql.ErrNoRows {
 		jsonError(w, "scan not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		jsonError(w, "database error", http.StatusInternalServerError)
+		return
+	}
+	// Ownership check: return 404 (not 403) to avoid leaking which scan IDs exist.
+	if ownerID != auth.UserIDFromContext(r.Context()) {
+		jsonError(w, "scan not found", http.StatusNotFound)
 		return
 	}
 	s.ScanTime, _ = time.Parse(time.RFC3339Nano, scanTimeStr)
@@ -211,5 +212,3 @@ func (h *HistoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.db.Exec(`DELETE FROM scan_results WHERE scan_id = ?`, id)
 	jsonOK(w, map[string]string{"status": "deleted"})
 }
-
-

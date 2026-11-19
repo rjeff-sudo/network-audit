@@ -51,7 +51,7 @@ var migrations = []string{
 		created_at   TEXT    NOT NULL,
 		updated_at   TEXT    NOT NULL
 	)`,
- 
+
 	// v6 — index on username for fast login lookups
 	`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 
@@ -66,7 +66,7 @@ var migrations = []string{
 		next_run     TEXT    NOT NULL,
 		created_at   TEXT    NOT NULL
 	)`,
- 
+
 	// v8 — index for fast next_run polling
 	`CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run)`,
 
@@ -91,4 +91,24 @@ var migrations = []string{
 
 	// v12 — pending_email column on users (required by auth.go for email-change flow)
 	`ALTER TABLE users ADD COLUMN pending_email TEXT NOT NULL DEFAULT ''`,
+
+	// v13 — pending_registrations table (required by auth.Register / auth.VerifyEmail)
+	//       Stores unverified sign-up attempts so the users table is never
+	//       polluted with unverified accounts and usernames remain reserved
+	//       only until the token expires.
+	`CREATE TABLE IF NOT EXISTS pending_registrations (
+		id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+		email              TEXT    NOT NULL,
+		username           TEXT    NOT NULL UNIQUE,
+		password_hash      TEXT    NOT NULL,
+		verification_token TEXT    NOT NULL UNIQUE,
+		token_expires_at   TEXT    NOT NULL,
+		created_at         TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_pending_reg_token    ON pending_registrations(verification_token)`,
+	`CREATE INDEX IF NOT EXISTS idx_pending_reg_username ON pending_registrations(username)`,
+	`CREATE INDEX IF NOT EXISTS idx_pending_reg_expires  ON pending_registrations(token_expires_at)`,
+
+	// v14 — unique constraint on users.email (issue #3: one email per account)
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != ''`,
 }

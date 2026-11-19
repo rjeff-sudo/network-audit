@@ -42,10 +42,10 @@ func main() {
 	defer db.Close()
 
 	// ── 3. Shared dependencies ────────────────────────────────────────────────
-	wsHub   := hub.New(cfg.Server.CORSOrigin)
-	nvdCli  := nvd.NewClient(cfg, db)
-	engine  := audit.NewEngine(cfg, db, nvdCli)
-	authSvc  := auth.New(cfg.Auth, db)
+	wsHub := hub.New(cfg.Server.CORSOrigin)
+	nvdCli := nvd.NewClient(cfg, db)
+	engine := audit.NewEngine(cfg, db, nvdCli)
+	authSvc := auth.New(cfg.Auth, db)
 	emailCfg := email.Config{
 		Host:         cfg.SMTP.Host,
 		Port:         cfg.SMTP.Port,
@@ -55,67 +55,67 @@ func main() {
 		ResendAPIKey: cfg.SMTP.ResendAPIKey,
 	}
 	emailCli := email.NewClient(emailCfg)
-	sched    := scheduler.New(db, engine, wsHub, emailCli, authSvc)
+	sched := scheduler.New(db, engine, wsHub, emailCli, authSvc)
 	serverURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
 
 	// ── 4. Handlers ───────────────────────────────────────────────────────────
-	scanH      := handlers.NewScanHandler(engine, wsHub)
+	scanH := handlers.NewScanHandler(engine, wsHub)
 	discoveryH := handlers.NewDiscoveryHandler(cfg, wsHub)
-	historyH   := handlers.NewHistoryHandler(db)
-	reportH    := handlers.NewReportHandler(db)
-	loginH     := handlers.NewLoginHandler(authSvc)
-	setupH     := handlers.NewSetupHandler(authSvc, emailCli, serverURL)
-	verifyH    := handlers.NewVerifyHandler(authSvc)
-	registerH  := handlers.NewRegisterHandler(authSvc, emailCli, serverURL)
-	schedH     := handlers.NewScheduleHandler(sched)
-	settingsH  := handlers.NewSettingsHandler(authSvc, emailCli, serverURL)
-	topoH      := handlers.NewTopologyHandler(db)
-	trendH     := handlers.NewTrendHandler(db)
+	historyH := handlers.NewHistoryHandler(db)
+	reportH := handlers.NewReportHandler(db)
+	loginH := handlers.NewLoginHandler(authSvc)
+	setupH := handlers.NewSetupHandler(authSvc, emailCli, serverURL)
+	verifyH := handlers.NewVerifyHandler(authSvc)
+	registerH := handlers.NewRegisterHandler(authSvc, emailCli, serverURL)
+	schedH := handlers.NewScheduleHandler(sched)
+	settingsH := handlers.NewSettingsHandler(authSvc, emailCli, serverURL)
+	topoH := handlers.NewTopologyHandler(db)
+	trendH := handlers.NewTrendHandler(db)
 
 	// ── 5. Routes ─────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
 	// Public auth routes
-	mux.HandleFunc("/setup",     setupH.ServeHTTP)
+	mux.HandleFunc("/setup", setupH.ServeHTTP)
 	mux.HandleFunc("/api/setup", setupH.Create)
 	mux.HandleFunc("/api/verify-email", verifyH.VerifyEmail)
 	mux.HandleFunc("/register", registerH.ServeHTTP)
 	mux.HandleFunc("/api/register", registerH.Create)
-	mux.HandleFunc("/login",     loginH.ServeHTTP)
-	mux.HandleFunc("/logout",    loginH.Logout)
+	mux.HandleFunc("/login", loginH.ServeHTTP)
+	mux.HandleFunc("/logout", loginH.Logout)
 
 	// WebSocket
 	mux.HandleFunc("/ws", wsHub.ServeWS)
 
 	// Protected API
-	mux.HandleFunc("/api/scan",         scanH.ServeHTTP)
-	mux.HandleFunc("/api/scan/cancel",  scanH.Cancel)
-	mux.HandleFunc("/api/scan/subnet",  scanH.SubnetScan)
-	mux.HandleFunc("/api/subnet",       discoveryH.Subnet)
-	mux.HandleFunc("/api/discover",     discoveryH.Discover)
-	mux.HandleFunc("/api/history",      historyH.List)
-	mux.HandleFunc("/api/history/",     routeHistory(historyH))
-	mux.HandleFunc("/api/report/",      reportH.Download)
+	mux.HandleFunc("/api/scan", scanH.ServeHTTP)
+	mux.HandleFunc("/api/scan/cancel", scanH.Cancel)
+	mux.HandleFunc("/api/scan/subnet", scanH.SubnetScan)
+	mux.HandleFunc("/api/subnet", discoveryH.Subnet)
+	mux.HandleFunc("/api/discover", discoveryH.Discover)
+	mux.HandleFunc("/api/history", historyH.List)
+	mux.HandleFunc("/api/history/", routeHistory(historyH))
+	mux.HandleFunc("/api/report/", reportH.Download)
 	mux.HandleFunc("/api/schedules", func(w http.ResponseWriter, r *http.Request) {
-        switch r.Method {
-        case http.MethodGet:
-              schedH.List(w, r)
-        case http.MethodPost:
-             schedH.Create(w, r)
-        default:
-            w.Header().Set("Content-Type", "application/json")
-            w.WriteHeader(http.StatusMethodNotAllowed)
-            w.Write([]byte(`{"error":"method not allowed"}`))
-        }
-    })
+		switch r.Method {
+		case http.MethodGet:
+			schedH.List(w, r)
+		case http.MethodPost:
+			schedH.Create(w, r)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte(`{"error":"method not allowed"}`))
+		}
+	})
 	mux.HandleFunc("/api/schedules/", schedH.Route)
-	mux.HandleFunc("/api/settings/password",             settingsH.ChangePassword)
-	mux.HandleFunc("/api/settings/email-status",         settingsH.EmailStatus)
-	mux.HandleFunc("/api/settings/change-email",         settingsH.ChangeEmail)
-	mux.HandleFunc("/api/settings/resend-verification",  settingsH.ResendVerification)
-	mux.HandleFunc("/api/topology",                    topoH.HandleTopo)
-	mux.HandleFunc("/api/trends",                      trendH.HandleTrends)
-	mux.HandleFunc("/api/trends/devices",              trendH.HandleDeviceTrends)
+	mux.HandleFunc("/api/settings/password", settingsH.ChangePassword)
+	mux.HandleFunc("/api/settings/email-status", settingsH.EmailStatus)
+	mux.HandleFunc("/api/settings/change-email", settingsH.ChangeEmail)
+	mux.HandleFunc("/api/settings/resend-verification", settingsH.ResendVerification)
+	mux.HandleFunc("/api/topology", topoH.HandleTopo)
+	mux.HandleFunc("/api/trends", trendH.HandleTrends)
+	mux.HandleFunc("/api/trends/devices", trendH.HandleDeviceTrends)
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
@@ -126,6 +126,7 @@ func main() {
 	// ── 7. Background tasks ───────────────────────────────────────────────────
 	sched.Start()
 	go runCachePruner(db, cfg)
+	go runPendingRegistrationPruner(authSvc)
 
 	// ── 8. Server ─────────────────────────────────────────────────────────────
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -200,7 +201,7 @@ func spaHandler(dir string) http.Handler {
 			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
 			return
 		}
-		clean    := strings.TrimPrefix(r.URL.Path, "/")
+		clean := strings.TrimPrefix(r.URL.Path, "/")
 		fullPath := filepath.Join(dir, clean)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			serveFileDirectly(w, filepath.Join(dir, "landing.html"))
@@ -243,8 +244,19 @@ func withCORS(origin string) func(http.Handler) http.Handler {
 	}
 }
 
+// runPendingRegistrationPruner removes expired pending registration rows every
+// hour so stale attempts do not permanently lock the username they reserved.
+func runPendingRegistrationPruner(authSvc *auth.Auth) {
+	authSvc.CleanupExpiredPendingRegistrations() // run once at startup
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		authSvc.CleanupExpiredPendingRegistrations()
+	}
+}
+
 func runCachePruner(db *sql.DB, cfg models.Config) {
-	ttl    := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
+	ttl := time.Duration(cfg.NVD.CacheTTLHours) * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -267,18 +279,44 @@ func loadConfig(path string) (models.Config, error) {
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
-	if cfg.Server.Port == 0             { cfg.Server.Port = 8080 }
-	if cfg.Server.UIDir == ""           { cfg.Server.UIDir = "./ui" }
-	if cfg.Server.DBPath == ""          { cfg.Server.DBPath = "./data/audit.db" }
-	if cfg.Auth.SessionSecret == ""     { cfg.Auth.SessionSecret = "default-secret-change-me" }
-	if cfg.Auth.SessionTTLHours == 0    { cfg.Auth.SessionTTLHours = 168 }
-	if cfg.Scanner.WorkerCount == 0     { cfg.Scanner.WorkerCount = 100 }
-	if cfg.Scanner.TimeoutMs == 0       { cfg.Scanner.TimeoutMs = 500 }
-	if cfg.Scanner.BannerTimeoutMs == 0 { cfg.Scanner.BannerTimeoutMs = 2000 }
-	if cfg.Discovery.WorkerCount == 0   { cfg.Discovery.WorkerCount = 50 }
-	if cfg.Discovery.TimeoutMs == 0     { cfg.Discovery.TimeoutMs = 200 }
-	if cfg.NVD.BaseURL == ""            { cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0" }
-	if cfg.NVD.CacheTTLHours == 0       { cfg.NVD.CacheTTLHours = 168 }
-	if cfg.NVD.RequestDelayMs == 0      { cfg.NVD.RequestDelayMs = 600 }
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8080
+	}
+	if cfg.Server.UIDir == "" {
+		cfg.Server.UIDir = "./ui"
+	}
+	if cfg.Server.DBPath == "" {
+		cfg.Server.DBPath = "./data/audit.db"
+	}
+	if cfg.Auth.SessionSecret == "" {
+		cfg.Auth.SessionSecret = "default-secret-change-me"
+	}
+	if cfg.Auth.SessionTTLHours == 0 {
+		cfg.Auth.SessionTTLHours = 168
+	}
+	if cfg.Scanner.WorkerCount == 0 {
+		cfg.Scanner.WorkerCount = 100
+	}
+	if cfg.Scanner.TimeoutMs == 0 {
+		cfg.Scanner.TimeoutMs = 500
+	}
+	if cfg.Scanner.BannerTimeoutMs == 0 {
+		cfg.Scanner.BannerTimeoutMs = 2000
+	}
+	if cfg.Discovery.WorkerCount == 0 {
+		cfg.Discovery.WorkerCount = 50
+	}
+	if cfg.Discovery.TimeoutMs == 0 {
+		cfg.Discovery.TimeoutMs = 200
+	}
+	if cfg.NVD.BaseURL == "" {
+		cfg.NVD.BaseURL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+	}
+	if cfg.NVD.CacheTTLHours == 0 {
+		cfg.NVD.CacheTTLHours = 168
+	}
+	if cfg.NVD.RequestDelayMs == 0 {
+		cfg.NVD.RequestDelayMs = 600
+	}
 	return cfg, nil
 }

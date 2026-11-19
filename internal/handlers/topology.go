@@ -62,24 +62,49 @@ func (h *TopologyHandler) HandleTopo(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var devices []topologyDevice
+	// Collect scan IDs and base device data first, then batch-fetch port details.
+	type partialDevice struct {
+		topologyDevice
+		scanID int64
+	}
+	var partial []partialDevice
+	var scanIDs []int64
+
 	for rows.Next() {
-		var d topologyDevice
+		var d partialDevice
 		var scanTimeStr string
 		if err := rows.Scan(&d.IP, &d.Hostname, &d.RiskScore, &scanTimeStr, &d.OpenPorts, &d.CVECount); err != nil {
 			continue
 		}
 		t, _ := time.Parse(time.RFC3339Nano, scanTimeStr)
 		d.ScanTime = t.Format(time.RFC3339)
-
-		// Get services for this device's latest scan
-		scanID := h.getLatestScanID(d.IP, userID)
-		if scanID > 0 {
-			d.Services = h.getServices(scanID)
-			d.DeviceType = h.fingerprintDeviceType(scanID)
-			d.OSHint = h.fingerprintOS(scanID)
+		d.scanID = h.getLatestScanID(d.IP, userID)
+		partial = append(partial, d)
+		if d.scanID > 0 {
+			scanIDs = append(scanIDs, d.scanID)
 		}
+	}
+	rows.Close()
 
+	// Batch fetch all port data for all scan IDs in two queries.
+	serviceMap := map[int64][]string{}
+	portSetMap := map[int64]map[int]bool{}
+	productMap := map[int64][]string{}
+	if len(scanIDs) > 0 {
+		serviceMap, portSetMap, productMap = h.batchFetchPortData(scanIDs)
+	}
+
+	var devices []topologyDevice
+	for _, pd := range partial {
+		d := pd.topologyDevice
+		if pd.scanID > 0 {
+			d.Services = serviceMap[pd.scanID]
+			if d.Services == nil {
+				d.Services = []string{}
+			}
+			d.DeviceType = classifyDeviceType(portSetMap[pd.scanID])
+			d.OSHint = classifyOS(productMap[pd.scanID])
+		}
 		devices = append(devices, d)
 	}
 
@@ -99,107 +124,145 @@ func (h *TopologyHandler) getLatestScanID(ip string, userID int64) int64 {
 	return id
 }
 
-func (h *TopologyHandler) getServices(scanID int64) []string {
-	rows, err := h.db.Query(`
-		SELECT DISTINCT service FROM scan_results
-		WHERE scan_id = ? AND service != '' ORDER BY service`, scanID)
+// batchFetchPortData fetches service, port, and product data for a slice of
+// scan IDs in two queries (instead of one query per device), eliminating the
+// N+1 problem in HandleTopo.
+//
+// Returns:
+//
+//	serviceMap  — scan_id → sorted list of distinct non-empty service names
+//	portSetMap  — scan_id → set of open port numbers
+//	productMap  — scan_id → list of distinct non-empty product banner strings
+func (h *TopologyHandler) batchFetchPortData(scanIDs []int64) (
+	serviceMap map[int64][]string,
+	portSetMap map[int64]map[int]bool,
+	productMap map[int64][]string,
+) {
+	serviceMap = make(map[int64][]string)
+	portSetMap = make(map[int64]map[int]bool)
+	productMap = make(map[int64][]string)
+
+	if len(scanIDs) == 0 {
+		return
+	}
+
+	// Build a placeholder list: (?,?,?,...) for the IN clause.
+	placeholders := make([]byte, 0, len(scanIDs)*2)
+	args := make([]interface{}, len(scanIDs))
+	for i, id := range scanIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args[i] = id
+	}
+	inClause := string(placeholders)
+
+	rows, err := h.db.Query(
+		`SELECT scan_id, port, service, product FROM scan_results WHERE scan_id IN (`+inClause+`)`,
+		args...)
 	if err != nil {
-		return nil
+		return
 	}
 	defer rows.Close()
 
-	var services []string
+	// Track which services/products we have already appended to avoid
+	// re-scanning the slice on every row; use a small set per scan_id.
+	seenSvc := make(map[int64]map[string]bool)
+	seenProd := make(map[int64]map[string]bool)
+
 	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err == nil {
-			services = append(services, s)
+		var scanID int64
+		var port int
+		var service, product string
+		if err := rows.Scan(&scanID, &port, &service, &product); err != nil {
+			continue
+		}
+
+		// Port set
+		if portSetMap[scanID] == nil {
+			portSetMap[scanID] = make(map[int]bool)
+		}
+		portSetMap[scanID][port] = true
+
+		// Services (distinct, non-empty)
+		if service != "" {
+			if seenSvc[scanID] == nil {
+				seenSvc[scanID] = make(map[string]bool)
+			}
+			if !seenSvc[scanID][service] {
+				seenSvc[scanID][service] = true
+				serviceMap[scanID] = append(serviceMap[scanID], service)
+			}
+		}
+
+		// Products (distinct, non-empty)
+		if product != "" {
+			if seenProd[scanID] == nil {
+				seenProd[scanID] = make(map[string]bool)
+			}
+			if !seenProd[scanID][product] {
+				seenProd[scanID][product] = true
+				productMap[scanID] = append(productMap[scanID], product)
+			}
 		}
 	}
-	return services
+	return
 }
 
-// fingerprintDeviceType infers the device type from open port patterns.
-func (h *TopologyHandler) fingerprintDeviceType(scanID int64) string {
-	rows, err := h.db.Query(`SELECT port FROM scan_results WHERE scan_id = ?`, scanID)
-	if err != nil {
+// classifyDeviceType infers a device category from its open-port fingerprint.
+func classifyDeviceType(ports map[int]bool) string {
+	if ports == nil {
 		return "unknown"
 	}
-	defer rows.Close()
-
-	ports := map[int]bool{}
-	for rows.Next() {
-		var p int
-		if err := rows.Scan(&p); err == nil {
-			ports[p] = true
-		}
-	}
-
 	// Printer: IPP (631), raw printing (9100)
 	if ports[631] || ports[9100] {
 		return "printer"
 	}
-	// Router/network device: SNMP (161), UPnP (1900), management (8080 with SSH)
+	// Router/network device: SNMP (161), UPnP (1900)
 	if ports[161] || ports[1900] {
 		return "router"
 	}
-	// Windows server/workstation: RDP (3389), SMB (445), WinRM (5985/5986)
+	// Windows workstation/server: RDP (3389), SMB+RPC (445+135), WinRM (5985/5986)
 	if ports[3389] || (ports[445] && ports[135]) || ports[5985] || ports[5986] {
 		return "workstation"
 	}
-	// Server: web (80/443) + database (3306/5432/27017/6379)
+	// Server: web stack combined with a database port
 	if (ports[80] || ports[443]) && (ports[3306] || ports[5432] || ports[27017] || ports[6379]) {
 		return "server"
 	}
-	// Web server: 80 or 443
+	// Pure web server
 	if ports[80] || ports[443] {
 		return "server"
 	}
-	// Database server: just database ports
+	// Database-only
 	if ports[3306] || ports[5432] || ports[27017] || ports[6379] || ports[1433] {
 		return "server"
 	}
-	// Linux/Unix workstation: SSH only
+	// Linux/Unix host reachable only via SSH
 	if ports[22] && !ports[80] && !ports[443] {
 		return "workstation"
 	}
-
 	return "unknown"
 }
 
-// fingerprintOS infers the OS from banner products stored in scan_results.
-func (h *TopologyHandler) fingerprintOS(scanID int64) string {
-	rows, err := h.db.Query(`
-		SELECT DISTINCT product FROM scan_results
-		WHERE scan_id = ? AND product != ''`, scanID)
-	if err != nil {
-		return "unknown"
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var product string
-		if err := rows.Scan(&product); err != nil {
-			continue
-		}
-		p := product
-		// Windows indicators
+// classifyOS infers the operating system from banner product strings returned
+// by the scanner (populated from service version detection).
+func classifyOS(products []string) string {
+	for _, p := range products {
 		if containsAny(p, "Microsoft", "IIS", "Windows", "SMB", "RDP", "WinRM") {
 			return "windows"
 		}
-		// macOS indicators
 		if containsAny(p, "macOS", "Darwin", "Apple") {
 			return "macos"
 		}
-		// Linux indicators (most common)
 		if containsAny(p, "OpenSSH", "nginx", "Apache", "Ubuntu", "Debian", "CentOS",
 			"Red Hat", "kernel", "Linux", "lighttpd", "ProFTPD", "vsftpd", "Postfix", "Dovecot") {
 			return "linux"
 		}
-		// Network设备
 		if containsAny(p, "Cisco", "MikroTik", "Ubiquiti", "TP-Link", "D-Link") {
 			return "network"
 		}
-		// Printer
 		if containsAny(p, "HP", "Canon", "Epson", "Brother", "CUPS", "Printer") {
 			return "printer"
 		}
@@ -249,5 +312,3 @@ func getGatewayIP() string {
 	// For now, return empty — the frontend handles this gracefully.
 	return ""
 }
-
-

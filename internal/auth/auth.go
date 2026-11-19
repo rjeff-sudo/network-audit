@@ -415,27 +415,51 @@ func (a *Auth) RequestEmailChange(username, newEmail, password string) (string, 
 		return "", fmt.Errorf("please enter a valid email address")
 	}
 
+	// Reject if another verified account already uses this email.
+	var taken int
+	a.db.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE email = ? AND username != ? AND email_verified = 1`,
+		newEmail, username).Scan(&taken)
+	if taken > 0 {
+		return "", fmt.Errorf("that email address is already in use by another account")
+	}
+
 	// Normalise the "change to the same email" case: just re-send verification.
 	current := a.GetEmail(username)
 	if current == newEmail {
-		token, err := a.SendVerification(username)
+		token, err := a.issueVerificationToken(username)
 		if err != nil {
 			return "", fmt.Errorf("could not create verification token: %w", err)
 		}
 		return token, nil
 	}
 
-	token, err := a.SendVerification(username)
+	// Store the new email as pending and issue a token for the pending address.
+	token, err := a.issueVerificationToken(username)
 	if err != nil {
 		return "", fmt.Errorf("could not create verification token: %w", err)
 	}
 
-	// SendVerification already stored a 24h expiry on the users row. Keep it.
 	_, err = a.db.Exec(
 		`UPDATE users SET pending_email = ? WHERE username = ?`,
 		newEmail, username)
 	if err != nil {
 		return "", fmt.Errorf("store pending email: %w", err)
+	}
+	return token, nil
+}
+
+// issueVerificationToken generates a 24h token and stores it on the user row.
+// Unlike SendVerification it does NOT require the user to already have an email
+// set, so it can be used for new email-address flows.
+func (a *Auth) issueVerificationToken(username string) (string, error) {
+	token := randomHex(32)
+	expires := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+	_, err := a.db.Exec(
+		`UPDATE users SET verification_token = ?, token_expires_at = ? WHERE username = ?`,
+		token, expires, username)
+	if err != nil {
+		return "", err
 	}
 	return token, nil
 }
@@ -467,21 +491,13 @@ func (a *Auth) ConfirmPendingEmail(username string) error {
 }
 
 // SendVerification generates a token for the given user, stores it, and
-// returns it for the caller to email.
+// returns it for the caller to email. The user must already have an email set.
 func (a *Auth) SendVerification(username string) (string, error) {
 	email := a.GetEmail(username)
 	if email == "" {
 		return "", fmt.Errorf("no email address set for user")
 	}
-	token := randomHex(32)
-	expires := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
-	_, err := a.db.Exec(
-		`UPDATE users SET verification_token = ?, token_expires_at = ? WHERE username = ?`,
-		token, expires, username)
-	if err != nil {
-		return "", err
-	}
-	return token, nil
+	return a.issueVerificationToken(username)
 }
 
 // VerifyEmail completes a pending registration if the token is valid and
