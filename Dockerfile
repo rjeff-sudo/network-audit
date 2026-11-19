@@ -2,7 +2,7 @@
 # Full Go image with GCC — needed because go-sqlite3 uses CGO (C bindings).
 FROM golang:1.22-alpine AS builder
 
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev git
 
 WORKDIR /app
 

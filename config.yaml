@@ -1,7 +1,7 @@
 server:
   port: 8080
   ui_dir: "./ui"
-  db_path: "./audit.db"
+  db_path: "./data/audit.db"
   cors_origin: ""
 
 auth:
