@@ -985,153 +985,313 @@ function riskColor(score) {
   return '#f87171';
 }
 
-/* - Vulnerability Trend Tracker - */
-async function loadTrends() {
-  try {
-    const [devicesRes, pointsRes] = await Promise.all([
-      fetch('/api/trends/devices'),
-      fetch('/api/trends'),
-    ]);
-    const devicesData = await devicesRes.json();
-    const pointsData  = await pointsRes.json();
-    if (devicesData.error) throw new Error(devicesData.error);
+/* ═══════════════════════════════════════════════════════════════════════════
+   Vulnerability Trend Tracker
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-    renderTrendChart(pointsData.points || []);
-    renderTrendDevices(devicesData.devices || []);
+// Palette — one colour per device (cycles if >8 devices)
+const TREND_PALETTE = ['#a2f6f5','#f9a825','#f06292','#81d4fa','#aed581','#ce93d8','#ff8a65','#4db6ac'];
+
+// State
+let _trendData     = [];   // full summary from /api/trends/summary
+let _trendMetric   = 'risk'; // 'risk' | 'cve' | 'ports'
+let _trendFilterIP = null;   // null = show all
+
+async function loadTrends() {
+  const listEl = document.getElementById('trend-devices-list');
+  if (listEl) listEl.innerHTML = '<p style="color:var(--stone)">Loading…</p>';
+
+  try {
+    const res  = await fetch('/api/trends/summary');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _trendData   = data.devices || [];
+    _trendFilterIP = null;
+    renderTrendStats(_trendData);
+    renderTrendLegend(_trendData);
+    drawTrendChart(_trendData, null, _trendMetric);
+    renderTrendDeviceCards(_trendData);
+    setTrendMetric(_trendMetric, /*silent*/true);
   } catch (err) {
-    document.getElementById('trend-devices-list').innerHTML = `<p style="color:var(--red)">Error: ${err.message}</p>`;
+    if (listEl) listEl.innerHTML = `<p style="color:var(--red)">Error: ${err.message}</p>`;
   }
 }
 
-function renderTrendChart(points) {
+// ── Metric toggle ────────────────────────────────────────────────────────────
+function setTrendMetric(metric, silent) {
+  _trendMetric = metric;
+  ['risk','cve','ports'].forEach(m => {
+    const btn = document.getElementById(`trend-btn-${m}`);
+    if (!btn) return;
+    btn.style.background    = m === metric ? 'rgba(162,246,245,0.15)' : '';
+    btn.style.borderColor   = m === metric ? 'rgba(162,246,245,0.4)'  : '';
+    btn.style.color         = m === metric ? '#a2f6f5' : '';
+  });
+  const labels = { risk: 'Risk Score (0–100)', cve: 'CVE Count', ports: 'Open Ports' };
+  const sub    = { risk: 'Higher = safer', cve: 'Lower = safer', ports: 'New ports appearing = potential exposure' };
+  const titleEl = document.getElementById('trend-chart-title');
+  const subEl   = document.getElementById('trend-chart-sub');
+  if (titleEl) titleEl.textContent = labels[metric] + ' Over Time';
+  if (subEl)   subEl.textContent   = (_trendFilterIP ? `Filtered: ${_trendFilterIP} — ` : 'All devices — ') + sub[metric];
+  if (!silent) drawTrendChart(_trendData, _trendFilterIP, metric);
+}
+
+// ── Filter by device ─────────────────────────────────────────────────────────
+function filterTrendDevice(ip) {
+  _trendFilterIP = ip;
+  document.getElementById('trend-clear-btn').style.display = 'block';
+  setTrendMetric(_trendMetric, /*silent*/true);
+  drawTrendChart(_trendData, ip, _trendMetric);
+  renderTrendLegend(_trendData, ip);
+}
+
+function clearTrendFilter() {
+  _trendFilterIP = null;
+  document.getElementById('trend-clear-btn').style.display = 'none';
+  setTrendMetric(_trendMetric, /*silent*/true);
+  drawTrendChart(_trendData, null, _trendMetric);
+  renderTrendLegend(_trendData, null);
+}
+
+// ── Summary stat tiles ───────────────────────────────────────────────────────
+function renderTrendStats(devices) {
+  const row = document.getElementById('trend-stats-row');
+  if (!row) return;
+
+  const totalDevices = devices.length;
+  const avgScore     = totalDevices ? Math.round(devices.reduce((s,d) => s + d.latest_score, 0) / totalDevices) : 0;
+  const totalCVEs    = devices.reduce((s,d) => s + d.latest_cve, 0);
+  const improved     = devices.filter(d => d.delta > 0).length;
+  const worsened     = devices.filter(d => d.delta < 0).length;
+
+  const tiles = [
+    { label: 'Devices Monitored', value: totalDevices,              color: '#a2f6f5' },
+    { label: 'Avg Risk Score',    value: avgScore + '/100',         color: riskColor(avgScore) },
+    { label: 'Total CVEs',        value: totalCVEs,                 color: totalCVEs > 0 ? '#f87171' : '#4ade80' },
+    { label: 'Improved',          value: '↑ ' + improved,          color: '#4ade80' },
+    { label: 'Worsened',          value: '↓ ' + worsened,          color: worsened > 0 ? '#f87171' : '#a69f9d' },
+  ];
+
+  row.innerHTML = tiles.map(t => `
+    <div style="background:rgba(227,204,192,0.03);border:1px solid rgba(227,204,192,0.08);border-radius:8px;padding:14px 16px">
+      <p style="font-size:10px;color:var(--stone);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px">${t.label}</p>
+      <p style="font-size:22px;font-weight:600;color:${t.color};line-height:1">${t.value}</p>
+    </div>`).join('');
+}
+
+// ── Legend ───────────────────────────────────────────────────────────────────
+function renderTrendLegend(devices, activeIP) {
+  const el = document.getElementById('trend-legend');
+  if (!el) return;
+  el.innerHTML = devices.map((d, i) => {
+    const color   = TREND_PALETTE[i % TREND_PALETTE.length];
+    const dimmed  = activeIP && activeIP !== d.ip;
+    return `<span style="display:flex;align-items:center;gap:5px;opacity:${dimmed ? 0.3 : 1};cursor:pointer" onclick="filterTrendDevice('${d.ip}')">
+      <span style="display:inline-block;width:16px;height:2px;background:${color};border-radius:1px"></span>
+      <span style="color:var(--stone)">${d.hostname || d.ip}</span>
+    </span>`;
+  }).join('');
+}
+
+// ── Multi-line chart ─────────────────────────────────────────────────────────
+function drawTrendChart(devices, filterIP, metric) {
   const svg = document.getElementById('trend-chart');
   if (!svg) return;
   svg.innerHTML = '';
 
-  const W = 800, H = 280, PAD = { top: 20, right: 20, bottom: 40, left: 50 };
+  const W = 820, H = 300, PAD = { top: 24, right: 24, bottom: 44, left: 52 };
   const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
+  const plotH = H - PAD.top  - PAD.bottom;
 
-  if (!points || points.length === 0) {
+  const visible = filterIP ? devices.filter(d => d.ip === filterIP) : devices;
+
+  if (!visible.length || !visible.some(d => d.points.length > 0)) {
     svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#a69f9d" font-size="13">No scan data yet. Run some scans to see trends.</text>';
     return;
   }
 
-  // Y axis: 0-100
-  const yScale = (v) => PAD.top + plotH * (1 - v / 100);
-  // X axis: spread points evenly
-  const xScale = (i) => PAD.left + (i / Math.max(points.length - 1, 1)) * plotW;
+  // Collect all timestamps globally for a shared X axis
+  const allTimes = [...new Set(
+    visible.flatMap(d => d.points.map(p => p.scan_time))
+  )].sort();
 
-  // Grid lines
-  [0, 25, 50, 75, 100].forEach(v => {
+  const getValue = (p) => metric === 'cve' ? p.cve_count : metric === 'ports' ? p.port_count : p.risk_score;
+
+  // Y domain
+  const allVals = visible.flatMap(d => d.points.map(getValue));
+  const yMin = metric === 'risk' ? 0 : 0;
+  const yMax = metric === 'risk' ? 100 : Math.max(10, ...allVals);
+
+  const xScale = (t) => PAD.left + (allTimes.indexOf(t) / Math.max(allTimes.length - 1, 1)) * plotW;
+  const yScale = (v) => PAD.top  + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  // Risk zone bands (only for risk metric)
+  if (metric === 'risk') {
+    [
+      { lo: 0,  hi: 20,  c: 'rgba(248,113,113,0.05)' },
+      { lo: 20, hi: 50,  c: 'rgba(249,115,22,0.04)'  },
+      { lo: 50, hi: 80,  c: 'rgba(251,191,36,0.03)'  },
+      { lo: 80, hi: 100, c: 'rgba(74,222,128,0.03)'  },
+    ].forEach(z => {
+      const rect = svgEl('rect', { x: PAD.left, y: yScale(z.hi), width: plotW, height: yScale(z.lo) - yScale(z.hi), fill: z.c });
+      svg.appendChild(rect);
+    });
+  }
+
+  // Grid lines (Y)
+  const gridTicks = metric === 'risk' ? [0, 25, 50, 75, 100] : Array.from({ length: 5 }, (_, i) => Math.round(yMin + (yMax - yMin) * i / 4));
+  gridTicks.forEach(v => {
     const y = yScale(v);
-    const line = svgEl('line', { x1: PAD.left, y1: y, x2: W - PAD.right, y2: y, stroke: 'rgba(227,204,192,0.08)', 'stroke-width': 1 });
-    svg.appendChild(line);
-    const label = svgEl('text', { x: PAD.left - 8, y: y + 4, 'text-anchor': 'end', fill: '#a69f9d', 'font-size': 10 });
-    label.textContent = v;
-    svg.appendChild(label);
+    svg.appendChild(svgEl('line', { x1: PAD.left, y1: y, x2: W - PAD.right, y2: y, stroke: 'rgba(227,204,192,0.07)', 'stroke-width': 1 }));
+    const lbl = svgEl('text', { x: PAD.left - 8, y: y + 4, 'text-anchor': 'end', fill: '#a69f9d', 'font-size': 10 });
+    lbl.textContent = v;
+    svg.appendChild(lbl);
   });
 
-  // Risk zones (background bands)
-  const zones = [
-    { y1: 0, y2: 20, color: 'rgba(248,113,113,0.04)' },
-    { y1: 20, y2: 50, color: 'rgba(249,115,22,0.03)' },
-    { y1: 50, y2: 80, color: 'rgba(251,191,36,0.03)' },
-    { y1: 80, y2: 100, color: 'rgba(74,222,128,0.03)' },
-  ];
-  zones.forEach(z => {
-    const rect = svgEl('rect', { x: PAD.left, y: yScale(z.y2), width: plotW, height: yScale(z.y1) - yScale(z.y2), fill: z.color });
-    svg.appendChild(rect);
+  // X-axis date labels (first and last, plus middle if ≥3 points)
+  const xLabelIdxs = allTimes.length <= 1 ? [0] :
+    allTimes.length === 2 ? [0, 1] :
+    [0, Math.floor((allTimes.length - 1) / 2), allTimes.length - 1];
+  xLabelIdxs.forEach(idx => {
+    const t = allTimes[idx];
+    const x = xScale(t);
+    const lbl = svgEl('text', { x, y: H - 6, 'text-anchor': 'middle', fill: '#a69f9d', 'font-size': 10 });
+    lbl.textContent = new Date(t).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
+    svg.appendChild(lbl);
+    // Tick
+    svg.appendChild(svgEl('line', { x1: x, y1: PAD.top + plotH, x2: x, y2: PAD.top + plotH + 4, stroke: 'rgba(227,204,192,0.2)', 'stroke-width': 1 }));
   });
 
-  // Line path
-  if (points.length > 1) {
-    let d = '';
-    points.forEach((p, i) => {
-      const x = xScale(i), y = yScale(p.risk_score);
-      d += (i === 0 ? 'M' : 'L') + `${x},${y}`;
-    });
-    const path = svgEl('path', { d, fill: 'none', stroke: '#a2f6f5', 'stroke-width': 2, 'stroke-linejoin': 'round' });
-    svg.appendChild(path);
-  }
+  // One line + dots per device
+  visible.forEach((dev, i) => {
+    const color = TREND_PALETTE[(filterIP ? devices.findIndex(d => d.ip === dev.ip) : i) % TREND_PALETTE.length];
+    const pts   = dev.points;
+    if (pts.length === 0) return;
 
-  // Data points
-  points.forEach((p, i) => {
-    const x = xScale(i), y = yScale(p.risk_score);
-    const color = riskColor(p.risk_score);
+    // Line
+    if (pts.length > 1) {
+      let d = '';
+      pts.forEach(p => {
+        const x = xScale(p.scan_time), y = yScale(getValue(p));
+        d += (d === '' ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      svg.appendChild(svgEl('path', { d, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
 
-    const circle = svgEl('circle', { cx: x, cy: y, r: 5, fill: color, stroke: '#200f0a', 'stroke-width': 1.5, cursor: 'pointer' });
-    circle.addEventListener('mouseenter', () => {
-      // Show tooltip
-      const tip = svgEl('g', { id: 'trend-tooltip' });
-      const bg = svgEl('rect', { x: x - 60, y: y - 40, width: 120, height: 32, rx: 4, fill: '#2b2538', stroke: 'rgba(227,204,192,0.2)' });
-      const txt = svgEl('text', { x: x, y: y - 22, 'text-anchor': 'middle', fill: '#fcfaf9', 'font-size': 11 });
-      txt.textContent = `${p.hostname || p.ip}: ${p.risk_score}`;
-      tip.appendChild(bg);
-      tip.appendChild(txt);
-      svg.appendChild(tip);
+    // Dots with tooltip
+    pts.forEach(p => {
+      const x = xScale(p.scan_time), y = yScale(getValue(p));
+      const dot = svgEl('circle', { cx: x, cy: y, r: 4.5, fill: color, stroke: '#1a0d0a', 'stroke-width': 1.5, cursor: 'pointer' });
+
+      dot.addEventListener('mouseenter', (e) => {
+        const tip = svgEl('g', { id: 'trend-tooltip' });
+        const lines = [
+          dev.hostname || dev.ip,
+          new Date(p.scan_time).toLocaleString('en-KE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          `Risk: ${p.risk_score}/100  CVEs: ${p.cve_count}  Ports: ${p.port_count}`,
+        ];
+        const tw = 210, th = lines.length * 15 + 10;
+        let tx = x - tw / 2, ty = y - th - 10;
+        if (tx < PAD.left) tx = PAD.left;
+        if (tx + tw > W - PAD.right) tx = W - PAD.right - tw;
+        if (ty < 0) ty = y + 14;
+        tip.appendChild(svgEl('rect', { x: tx, y: ty, width: tw, height: th, rx: 5, fill: '#1e1428', stroke: 'rgba(227,204,192,0.18)' }));
+        lines.forEach((line, li) => {
+          const t = svgEl('text', { x: tx + tw / 2, y: ty + 14 + li * 15, 'text-anchor': 'middle', fill: li === 0 ? color : '#d0c8c0', 'font-size': li === 0 ? 11 : 10 });
+          t.textContent = line;
+          tip.appendChild(t);
+        });
+        svg.appendChild(tip);
+      });
+      dot.addEventListener('mouseleave', () => {
+        const tip = svg.querySelector('#trend-tooltip');
+        if (tip) tip.remove();
+      });
+      svg.appendChild(dot);
     });
-    circle.addEventListener('mouseleave', () => {
-      const tip = svg.getElementById('trend-tooltip');
-      if (tip) tip.remove();
-    });
-    svg.appendChild(circle);
   });
-
-  // X-axis labels (date range)
-  if (points.length > 0) {
-    const first = new Date(points[0].scan_time).toLocaleDateString();
-    const last  = new Date(points[points.length - 1].scan_time).toLocaleDateString();
-    const lbl1 = svgEl('text', { x: PAD.left, y: H - 8, fill: '#a69f9d', 'font-size': 10 });
-    lbl1.textContent = first;
-    svg.appendChild(lbl1);
-    const lbl2 = svgEl('text', { x: W - PAD.right, y: H - 8, 'text-anchor': 'end', fill: '#a69f9d', 'font-size': 10 });
-    lbl2.textContent = last;
-    svg.appendChild(lbl2);
-  }
 }
 
-function renderTrendDevices(devices) {
+// ── Device cards ─────────────────────────────────────────────────────────────
+function renderTrendDeviceCards(devices) {
   const wrap = document.getElementById('trend-devices-list');
   if (!wrap) return;
 
   if (!devices || devices.length === 0) {
-    wrap.innerHTML = '<p style="color:var(--stone)">No devices scanned yet.</p>';
+    wrap.innerHTML = '<p style="color:var(--stone)">No devices scanned yet. Run a scan first.</p>';
     return;
   }
 
-  let html = '<div style="display:flex;flex-direction:column;gap:8px">';
-  devices.forEach(d => {
-    const color = riskColor(d.latest_score);
-    const barWidth = d.latest_score;
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+  devices.forEach((d, i) => {
+    const color     = TREND_PALETTE[i % TREND_PALETTE.length];
+    const scoreCol  = riskColor(d.latest_score);
+    const deltaSign = d.delta > 0 ? '↑' : d.delta < 0 ? '↓' : '→';
+    const deltaCol  = d.delta > 0 ? '#4ade80' : d.delta < 0 ? '#f87171' : '#a69f9d';
+    const deltaLabel = d.delta === 0 ? 'No change' : (d.delta > 0 ? `+${d.delta} improved` : `${d.delta} worsened`);
+
+    // Sparkline (risk score mini line, last 8 points max)
+    const spark = d.points.slice(-8);
+    let sparkSVG = '';
+    if (spark.length > 1) {
+      const sW = 80, sH = 24;
+      const sMax = Math.max(...spark.map(p => p.risk_score), 1);
+      const sMin = Math.min(...spark.map(p => p.risk_score));
+      const sRange = sMax - sMin || 1;
+      const sx = (i) => (i / (spark.length - 1)) * sW;
+      const sy = (v) => sH - ((v - sMin) / sRange) * (sH - 4) - 2;
+      let dPath = spark.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(i).toFixed(1)},${sy(p.risk_score).toFixed(1)}`).join(' ');
+      sparkSVG = `<svg width="${sW}" height="${sH}" viewBox="0 0 ${sW} ${sH}" style="display:block;flex-shrink:0"><path d="${dPath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+    }
+
     html += `
-      <div onclick="loadDeviceTrend('${d.ip}')" style="cursor:pointer;padding:10px 14px;background:rgba(227,204,192,0.03);border:1px solid rgba(227,204,192,0.08);border-radius:6px;transition:border-color 0.15s" onmouseover="this.style.borderColor='rgba(162,246,245,0.2)'" onmouseout="this.style.borderColor='rgba(227,204,192,0.08)'">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:13px;color:var(--cream)">${d.hostname || d.ip}</span>
-          <span style="font-size:12px;color:${color};font-weight:500">${d.latest_score}/100</span>
+      <div onclick="filterTrendDevice('${d.ip}')"
+           style="cursor:pointer;padding:14px;background:rgba(227,204,192,0.03);border:1px solid rgba(227,204,192,0.08);border-radius:8px;transition:border-color 0.15s"
+           onmouseover="this.style.borderColor='${color}40'" onmouseout="this.style.borderColor='rgba(227,204,192,0.08)'">
+
+        <!-- Header row -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+              <span style="font-size:13px;color:var(--cream);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.hostname || d.ip}</span>
+            </div>
+            <span style="font-size:10px;color:var(--stone)">${d.ip}</span>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:20px;font-weight:600;color:${scoreCol};line-height:1">${d.latest_score}</div>
+            <div style="font-size:10px;color:var(--stone)">/ 100</div>
+          </div>
         </div>
-        <div style="height:3px;background:rgba(227,204,192,0.08);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:${barWidth}%;background:${color};border-radius:99px"></div>
+
+        <!-- Sparkline + delta -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          ${sparkSVG}
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:600;color:${deltaCol}">${deltaSign} ${Math.abs(d.delta)}</div>
+            <div style="font-size:9px;color:var(--stone)">${deltaLabel}</div>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px">
-          <span style="font-size:10px;color:var(--stone)">${d.scan_count} scan${d.scan_count !== 1 ? 's' : ''}</span>
-          <span style="font-size:10px;color:var(--stone)">${d.ip}</span>
+
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;border-top:1px solid rgba(227,204,192,0.06);padding-top:8px">
+          <div>
+            <div style="font-size:11px;color:var(--stone)">CVEs</div>
+            <div style="font-size:13px;color:${d.latest_cve > 0 ? '#f87171' : '#4ade80'};font-weight:500">${d.latest_cve}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--stone)">Scans</div>
+            <div style="font-size:13px;color:var(--cream);font-weight:500">${d.scan_count}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--stone)">Ports</div>
+            <div style="font-size:13px;color:var(--cream);font-weight:500">${d.points.length ? d.points[d.points.length-1].port_count : '—'}</div>
+          </div>
         </div>
       </div>`;
   });
   html += '</div>';
   wrap.innerHTML = html;
-}
-
-async function loadDeviceTrend(ip) {
-  try {
-    const res  = await fetch(`/api/trends?ip=${encodeURIComponent(ip)}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    renderTrendChart(data.points || []);
-  } catch (err) {
-    toast('Error loading trend: ' + err.message, 'error');
-  }
 }
 
 /* - Boot - */

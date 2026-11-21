@@ -116,6 +116,7 @@ func main() {
 	mux.HandleFunc("/api/topology", topoH.HandleTopo)
 	mux.HandleFunc("/api/trends", trendH.HandleTrends)
 	mux.HandleFunc("/api/trends/devices", trendH.HandleDeviceTrends)
+	mux.HandleFunc("/api/trends/summary", trendH.HandleTrendsSummary)
 
 	// Static files
 	mux.Handle("/", spaHandler(cfg.Server.UIDir))
