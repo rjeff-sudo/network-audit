@@ -856,19 +856,26 @@ async function loadTopology() {
     if (res.status === 401) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Session expired - <a href="/login" fill="#a2f6f5">log in</a></text>'; return; }
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    renderTopology(svg, data.devices, data.gateway);
+    renderTopology(svg, data.devices, data.gateway, data.topology_type);
   } catch (err) {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171" font-size="14">Error: ${err.message}</text>`;
   }
 }
 
-function renderTopology(svg, devices, gateway) {
+function renderTopology(svg, devices, gateway, topologyType) {
   const W = 900, H = 500, CX = W/2, CY = H/2;
   svg.innerHTML = '';
 
   if (!devices || devices.length === 0) {
     svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#a69f9d" font-size="14">No devices scanned yet. Run a scan to see your network map.</text>';
     return;
+  }
+
+  // Topology type badge (top-left of canvas)
+  if (topologyType && topologyType !== 'unknown') {
+    const badge = svgEl('text', { x: 14, y: 22, fill: '#a2f6f5', 'font-size': 11, opacity: 0.8 });
+    badge.textContent = `Topology: ${topologyType.charAt(0).toUpperCase() + topologyType.slice(1)}`;
+    svg.appendChild(badge);
   }
 
   // Defs for glow filters

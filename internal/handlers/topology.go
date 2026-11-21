@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"database/sql"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rjeff-sudo/sme-shield/internal/auth"
@@ -112,9 +114,11 @@ func (h *TopologyHandler) HandleTopo(w http.ResponseWriter, r *http.Request) {
 		devices = []topologyDevice{}
 	}
 
+	gateway := getGatewayIP()
 	jsonOK(w, map[string]interface{}{
-		"devices": devices,
-		"gateway": getGatewayIP(),
+		"devices":       devices,
+		"gateway":       gateway,
+		"topology_type": inferTopologyType(devices, gateway),
 	})
 }
 
@@ -306,9 +310,99 @@ func equalFold(s, t string) bool {
 	return true
 }
 
-// getGatewayIP returns the gateway/router IP (first scan IP as heuristic).
+// getGatewayIP finds the host's default gateway by inspecting local network
+// interfaces. It returns the first non-loopback, non-link-local IPv4 address
+// and derives the likely gateway as x.x.x.1 — the conventional default for
+// home and SME routers. Falls back to empty string if nothing is found.
 func getGatewayIP() string {
-	// In a real implementation this would use net.Interfaces to get the default gateway.
-	// For now, return empty — the frontend handles this gracefully.
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range ifaces {
+		// Skip loopback, down interfaces, and virtual/docker bridges.
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		// Skip common virtual interface prefixes.
+		name := strings.ToLower(iface.Name)
+		if strings.HasPrefix(name, "docker") || strings.HasPrefix(name, "br-") ||
+			strings.HasPrefix(name, "veth") || strings.HasPrefix(name, "virbr") {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue // skip IPv6
+			}
+			// Skip link-local (169.254.x.x) and loopback (127.x.x.x).
+			if ip4[0] == 169 && ip4[1] == 254 {
+				continue
+			}
+			if ip4.IsLoopback() {
+				continue
+			}
+			// Derive gateway as network base + 1 (e.g. 192.168.1.5 → 192.168.1.1).
+			gw := net.IP{ip4[0], ip4[1], ip4[2], 1}
+			return gw.String()
+		}
+	}
 	return ""
+}
+
+// inferTopologyType analyses the set of discovered devices and infers the
+// physical/logical topology in use on the network.
+//
+// Rules (applied in order — first match wins):
+//
+//	mesh     — multiple routers/switches detected (ip4[3]==1 heuristic or
+//	           device_type=="router"), suggesting interconnected segments
+//	star     — one clear gateway/router and ≥2 other devices (the dominant
+//	           SME topology: all devices connect via a single switch/router)
+//	bus      — no router detected, devices appear on a flat segment (older
+//	           coaxial or hub-based layout; uncommon but possible in legacy SME)
+//	unknown  — fewer than 2 devices or insufficient data to decide
+func inferTopologyType(devices []topologyDevice, gateway string) string {
+	if len(devices) < 2 {
+		return "unknown"
+	}
+
+	routerCount := 0
+	for _, d := range devices {
+		if d.DeviceType == "router" {
+			routerCount++
+		}
+		// Also count IPs ending in .1 or .254 as likely routers/gateways
+		// (common convention for SME routers).
+		parts := strings.Split(d.IP, ".")
+		if len(parts) == 4 {
+			last := parts[3]
+			if last == "1" || last == "254" {
+				routerCount++
+			}
+		}
+	}
+
+	switch {
+	case routerCount >= 2:
+		// Multiple routing points → mesh or multi-segment star; call it mesh.
+		return "mesh"
+	case routerCount == 1 || gateway != "":
+		// One router / gateway detected → classic star topology.
+		return "star"
+	default:
+		// No router visible — flat bus-style segment.
+		return "bus"
+	}
 }

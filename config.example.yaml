@@ -54,9 +54,18 @@ nvd:
   request_delay_ms: 600
 
 smtp:
-  host: ""
-  port: 587
-  username: ""
-  password: ""
-  from_address: ""
+  # ── Option A: Resend (recommended) ───────────────────────────────────────
+  # 1. Sign up at https://resend.com (free tier: 100 emails/day)
+  # 2. Create an API key in the Resend dashboard
+  # 3. Paste it below — leave host/username/password empty
   resend_api_key: ""
+  from_address: "sentry@yourdomain.com"  # must be a verified sender in Resend
+
+  # ── Option B: SMTP (Gmail / any SMTP provider) ────────────────────────────
+  # Gmail: enable 2FA, then create an App Password at
+  # https://myaccount.google.com/apppasswords — use that as the password.
+  host: ""         # e.g. smtp.gmail.com
+  port: 587
+  username: ""     # e.g. you@gmail.com
+  password: ""     # App Password (not your Gmail login password)
+  # from_address above applies to SMTP too if resend_api_key is empty

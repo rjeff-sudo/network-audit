@@ -20,12 +20,12 @@ func NewTrendHandler(db *sql.DB) *TrendHandler {
 
 // trendPoint is a single data point in the trend chart.
 type trendPoint struct {
-	ScanID   int64  `json:"scan_id"`
-	IP       string `json:"ip"`
-	Hostname string `json:"hostname"`
-	RiskScore int   `json:"risk_score"`
-	ScanTime string `json:"scan_time"`
-	CVECount int    `json:"cve_count"`
+	ScanID    int64  `json:"scan_id"`
+	IP        string `json:"ip"`
+	Hostname  string `json:"hostname"`
+	RiskScore int    `json:"risk_score"`
+	ScanTime  string `json:"scan_time"`
+	CVECount  int    `json:"cve_count"`
 }
 
 // HandleTrends handles GET /api/trends?ip=optional
@@ -43,20 +43,28 @@ func (h *TrendHandler) HandleTrends(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 
+	// Use a LEFT JOIN aggregation instead of a correlated subquery to avoid
+	// an N+1 pattern (one extra query per scan row).
 	if ip != "" {
 		rows, err = h.db.Query(`
 			SELECT s.id, s.ip, COALESCE(s.hostname, ''), s.risk_score, s.scan_time,
-				COALESCE((SELECT SUM(r2.cve_count) FROM scan_results r2 WHERE r2.scan_id = s.id), 0) AS cve_count
+				COALESCE(SUM(r.cve_count), 0) AS cve_count
 			FROM scans s
+			LEFT JOIN scan_results r ON r.scan_id = s.id
 			WHERE s.ip = ? AND s.user_id = ?
+			GROUP BY s.id
 			ORDER BY s.scan_time ASC`, ip, userID)
 	} else {
-		// Return latest scan per device, ordered by scan time (for the overview chart)
+		// Return latest scan per device for the overview chart.
 		rows, err = h.db.Query(`
 			SELECT s.id, s.ip, COALESCE(s.hostname, ''), s.risk_score, s.scan_time,
-				COALESCE((SELECT SUM(r2.cve_count) FROM scan_results r2 WHERE r2.scan_id = s.id), 0) AS cve_count
+				COALESCE(SUM(r.cve_count), 0) AS cve_count
 			FROM scans s
-			WHERE s.user_id = ? AND s.id IN (SELECT MAX(id) FROM scans WHERE user_id = ? GROUP BY ip)
+			LEFT JOIN scan_results r ON r.scan_id = s.id
+			WHERE s.user_id = ? AND s.id IN (
+				SELECT MAX(id) FROM scans WHERE user_id = ? GROUP BY ip
+			)
+			GROUP BY s.id
 			ORDER BY s.scan_time ASC`, userID, userID)
 	}
 
@@ -97,17 +105,25 @@ func (h *TrendHandler) HandleDeviceTrends(w http.ResponseWriter, r *http.Request
 
 	userID := auth.UserIDFromContext(r.Context())
 
+	// Avoid correlated subqueries (one per device) by joining against the
+	// latest-scan-per-ip set once.
 	rows, err := h.db.Query(`
 		SELECT
-			ip,
-			COALESCE(MAX(hostname), '') AS hostname,
-			(SELECT risk_score FROM scans s2 WHERE s2.ip = s.ip AND s2.user_id = s.user_id ORDER BY s2.scan_time DESC LIMIT 1) AS latest_score,
-			(SELECT scan_time  FROM scans s2 WHERE s2.ip = s.ip AND s2.user_id = s.user_id ORDER BY s2.scan_time DESC LIMIT 1) AS latest_scan,
-			COUNT(*) AS scan_count
+			s.ip,
+			COALESCE(MAX(s.hostname), '') AS hostname,
+			latest.risk_score                AS latest_score,
+			latest.scan_time                 AS latest_scan,
+			COUNT(s.id)                      AS scan_count
 		FROM scans s
+		JOIN (
+			SELECT ip, risk_score, scan_time
+			FROM scans
+			WHERE user_id = ?
+			AND id IN (SELECT MAX(id) FROM scans WHERE user_id = ? GROUP BY ip)
+		) AS latest ON latest.ip = s.ip
 		WHERE s.user_id = ?
-		GROUP BY ip, s.user_id
-		ORDER BY latest_score ASC`, userID)
+		GROUP BY s.ip
+		ORDER BY latest_score ASC`, userID, userID, userID)
 	if err != nil {
 		jsonError(w, "database error", http.StatusInternalServerError)
 		return
