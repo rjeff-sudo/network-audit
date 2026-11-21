@@ -28,10 +28,14 @@ RUN apk add --no-cache sqlite-libs ca-certificates tzdata
 
 WORKDIR /app
 
-# Copy only the compiled binary and static assets.
-COPY --from=builder /app/bin/sentry ./sentry
-COPY --from=builder /app/ui             ./ui
-COPY --from=builder /app/config.yaml    ./config.yaml
+# Copy the compiled binary, static assets, and example config.
+# config.yaml is gitignored (contains secrets) — we ship config.example.yaml
+# as the in-image default. Mount your real config.yaml over it at runtime:
+#   volumes:
+#     - ./config.yaml:/app/config.yaml
+COPY --from=builder /app/bin/sentry          ./sentry
+COPY --from=builder /app/ui                  ./ui
+COPY --from=builder /app/config.example.yaml ./config.yaml
 
 # /app/data holds audit.db — mount a volume here to persist scan history.
 RUN mkdir -p /app/data

@@ -32,8 +32,10 @@ services:
 
     volumes:
       # Persist the SQLite database between container restarts.
-      # audit.db is stored in ./data/ on the host machine.
       - ./data:/app/data
+      # Mount your real config.yaml (gitignored) over the example default.
+      # Copy config.example.yaml → config.yaml and fill in your secrets first.
+      - ./config.yaml:/app/config.yaml:ro
 
     environment:
       - TZ=Africa/Nairobi
